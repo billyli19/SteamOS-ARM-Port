@@ -381,8 +381,8 @@ serial_suspend() {  # 1 = one device at a time, 0 = kernel default
 pre() {
   local n u x
   pad_watch_stop
+  report_start     # first: konkrd stops drawing stick effects on it
   lights_off
-  report_start
   wifi_mark
   x=$(xhci_off)
   serial_suspend 1
