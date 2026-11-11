@@ -26,7 +26,8 @@ jobs:
           dnf install -y --setopt=install_weak_deps=False \
             gcc gcc-c++ make bc bison flex python3 curl tar xz gzip cpio \
             kmod patch perl rsync openssl-devel elfutils-libelf-devel \
-            busybox file diffutils git findutils dwarves zstd
+            busybox file diffutils git findutils dwarves zstd \
+            rust rust-src bindgen-cli clang
           git config --global --add safe.directory '*'
 
       - name: Checkout repository
