@@ -1,0 +1,65 @@
+From: Armada <noreply@armada.local>
+Subject: [PATCH] ASoC: codecs: lpass-macro: force runtime suspend across system sleep
+
+The LPASS RX/TX/VA/WSA macros only have runtime PM ops. On the AYN Odin 3
+the WCD9390 SoundWire peripherals are kept runtime-active, so the
+SoundWire masters and the macros they clock stay active through s2idle.
+The macros then keep their q6prm clock and HW macro/dcodec votes, the
+ADSP keeps LPASS powered, and its RPMh DRV ("AUDIO" in the AOP CXPC
+violator log) blocks CX power collapse for the whole sleep.
+
+Force the runtime suspend across system sleep so the votes, which the
+PM clock framework conversion now releases in runtime suspend, are
+dropped for s2idle as well.
+
+Taken from ArmadaOS (packages/kernel/patches/0563).
+
+---
+diff --git a/sound/soc/codecs/lpass-rx-macro.c b/sound/soc/codecs/lpass-rx-macro.c
+index 689a99735..04cb92f1d 100644
+--- a/sound/soc/codecs/lpass-rx-macro.c
++++ b/sound/soc/codecs/lpass-rx-macro.c
+@@ -4110,6 +4110,7 @@ static int rx_macro_runtime_resume(struct device *dev)
+ }
+ 
+ static const struct dev_pm_ops rx_macro_pm_ops = {
++	SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend, pm_runtime_force_resume)
+ 	RUNTIME_PM_OPS(rx_macro_runtime_suspend, rx_macro_runtime_resume, NULL)
+ };
+ 
+diff --git a/sound/soc/codecs/lpass-tx-macro.c b/sound/soc/codecs/lpass-tx-macro.c
+index 4115990ca..964916867 100644
+--- a/sound/soc/codecs/lpass-tx-macro.c
++++ b/sound/soc/codecs/lpass-tx-macro.c
+@@ -2491,6 +2491,7 @@ static int tx_macro_runtime_resume(struct device *dev)
+ }
+ 
+ static const struct dev_pm_ops tx_macro_pm_ops = {
++	SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend, pm_runtime_force_resume)
+ 	RUNTIME_PM_OPS(tx_macro_runtime_suspend, tx_macro_runtime_resume, NULL)
+ };
+ 
+diff --git a/sound/soc/codecs/lpass-va-macro.c b/sound/soc/codecs/lpass-va-macro.c
+index 0a31b3188..a22e1479b 100644
+--- a/sound/soc/codecs/lpass-va-macro.c
++++ b/sound/soc/codecs/lpass-va-macro.c
+@@ -1798,6 +1798,7 @@ static int va_macro_runtime_resume(struct device *dev)
+ }
+ 
+ static const struct dev_pm_ops va_macro_pm_ops = {
++	SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend, pm_runtime_force_resume)
+ 	RUNTIME_PM_OPS(va_macro_runtime_suspend, va_macro_runtime_resume, NULL)
+ };
+ 
+diff --git a/sound/soc/codecs/lpass-wsa-macro.c b/sound/soc/codecs/lpass-wsa-macro.c
+index bd2edc045..13683f6ea 100644
+--- a/sound/soc/codecs/lpass-wsa-macro.c
++++ b/sound/soc/codecs/lpass-wsa-macro.c
+@@ -2941,6 +2941,7 @@ static int wsa_macro_runtime_resume(struct device *dev)
+ }
+ 
+ static const struct dev_pm_ops wsa_macro_pm_ops = {
++	SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend, pm_runtime_force_resume)
+ 	RUNTIME_PM_OPS(wsa_macro_runtime_suspend, wsa_macro_runtime_resume, NULL)
+ };
+ 

@@ -90,3 +90,13 @@
 		platform { sound-dai = <&q6apm>; };
 	};
 };
+
+/*
+ * The bootloader's early SoCCP image stays in D0 and keeps the SoC out of CX
+ * shutdown and DDR low power in sleep. This one (from the device's own
+ * firmware) parks itself in D3 (patches 0054 and 0055, as ArmadaOS). Without
+ * the file the driver keeps its bus vote: sleep works as before, no deeper.
+ */
+&remoteproc_soccp {
+	firmware-name = "qcom/sm8750/ayn/odin3/soccp.mbn";
+};

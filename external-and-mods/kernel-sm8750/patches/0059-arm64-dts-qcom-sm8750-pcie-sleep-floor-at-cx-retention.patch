@@ -1,0 +1,33 @@
+From: billyli19
+Subject: arm64: dts: qcom: sm8750: PCIe sleep floor at CX retention
+
+Same change as the SM8650 one (kernel-sm8650 0047). The suspend OPP keeps
+PCIe's DDR vote in the sleep set so the system can resume, but it also
+required CX at low_svs, and a CX level above retention for the whole sleep
+rules out CX collapse. On an AYN Odin 3 cxsd, aosd and ddr stayed at 0
+through every s2idle (sleep-stats, 2026-11-11) and the battery fell about
+2.5 % an hour asleep.
+
+Keep the DDR vote and ask only for CX retention.
+
+---
+diff --git a/arch/arm64/boot/dts/qcom/sm8750.dtsi b/arch/arm64/boot/dts/qcom/sm8750.dtsi
+index ea579305c..2bf87ae21 100644
+--- a/arch/arm64/boot/dts/qcom/sm8750.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8750.dtsi
+@@ -5702,11 +5702,13 @@ opp-16000000 {
+ 
+ 				/*
+ 				 * Suspend-only: the synthetic opp-hz and missing opp-level
+-				 * keep link-speed matching from selecting it.
++				 * keep link-speed matching from selecting it. DDR stays
++				 * voted so the system can resume, CX only at retention so
++				 * it can still collapse.
+ 				 */
+ 				opp-suspend-1 {
+ 					opp-hz = /bits/ 64 <1>;
+-					required-opps = <&rpmhpd_opp_low_svs>;
++					required-opps = <&rpmhpd_opp_ret>;
+ 					opp-peak-kBps = <1000 1>;
+ 					opp-suspend;
+ 				};
