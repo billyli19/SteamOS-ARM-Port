@@ -81,3 +81,4 @@ jobs:
         run: df -h /
 # rebuild: adds patch 0060 (crypto engine runtime PM)
  # rebuild:+ test D (no PCIe sleep OPP)
+# rebuild: , test E (patch 0061, LPASS pin controller)
