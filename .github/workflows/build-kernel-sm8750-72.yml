@@ -79,3 +79,4 @@ jobs:
       - name: Final disk space
         if: always()
         run: df -h /
+# rebuild: adds patch 0060 (crypto engine runtime PM)
