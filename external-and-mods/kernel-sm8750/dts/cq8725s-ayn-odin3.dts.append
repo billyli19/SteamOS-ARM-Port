@@ -102,3 +102,10 @@
 };
 /* Sleep test D: no PCIe sleep-set vote (MC0/SH0/CN0 stayed at 1 in the RPMh sleep set); SoCCP now covers the wake path. */
 &pcie0_opp_table { /delete-node/ opp-suspend-1; };
+/*
+ * Sleep test F: nothing uses the inline crypto engine (the UFS node has no
+ * qcom,ice link and fscrypt is off), but its driver enables the ICE core and
+ * UFS AHB clocks at probe and nobody ever suspends it, so they (and gpll4)
+ * stay on through sleep.
+ */
+&ice { status = "disabled"; };

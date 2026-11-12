@@ -1,0 +1,94 @@
+From: Zaviya <noreply@zaviya.local>
+Subject: [PATCH] serial: qcom-geni: force runtime suspend across system sleep
+
+uart_suspend_port() drops the port's runtime PM reference, but the PM core
+holds its own across system sleep, so the runtime suspend callback never
+runs for an open port. The serial engine clock and the QUP wrapper AHB
+clocks then stay enabled for the whole sleep, and with them a GCC PLL and
+XO. Force the runtime suspend from the system sleep callback, which also
+drops the CX and bus votes patch 0020 released by hand; that hand-written
+release is kept only for a console running with no_console_suspend.
+
+Follows upstream d0cd9c8d0fd5 ("serial: qcom-geni: add force suspend/resume
+to system sleep callbacks"), adapted to the non-console IRQ mask (0017) and
+the vote release (0020). Seen on an AYN Odin 3 in a clk trace of one suspend:
+gcc_qupv3_wrap2_s6_clk (Bluetooth) and gcc_qupv3_wrap2_s7_clk (gamepad MCU)
+were still enabled at machine_suspend.
+
+---
+diff --git a/drivers/tty/serial/qcom_geni_serial.c b/drivers/tty/serial/qcom_geni_serial.c
+index 185d6b844..5b9c340e2 100644
+--- a/drivers/tty/serial/qcom_geni_serial.c
++++ b/drivers/tty/serial/qcom_geni_serial.c
+@@ -1999,19 +1999,34 @@ static int qcom_geni_serial_suspend(struct device *dev)
+ 		return ret;
+ 
+ 	/*
+-	 * An open port still votes its CX level and bus bandwidth here, and
+-	 * those stay in RPMh's sleep set: any open UART keeps the SoC out of
+-	 * CX collapse. Leave nothing voted while the system sleeps (the port
+-	 * is stopped), for every port, not only the console. Bandwidth stays
+-	 * up while the CPUs run, so a console with no_console_suspend still
+-	 * prints.
++	 * A console kept alive with no_console_suspend has to keep its clocks.
++	 * Its CX level and bus bandwidth would stay in RPMh's sleep set and
++	 * keep the SoC out of CX collapse, so only those are dropped: the
++	 * bandwidth stays up while the CPUs run and the console still prints.
+ 	 */
+-	geni_icc_set_tag(&port->se, QCOM_ICC_TAG_ACTIVE_ONLY);
+-	geni_icc_set_bw(&port->se);
+-	if (port->clk_rate)
+-		dev_pm_opp_set_rate(dev, 0);
++	if (uart_console(uport) && !console_suspend_enabled) {
++		geni_icc_set_tag(&port->se, QCOM_ICC_TAG_ACTIVE_ONLY);
++		geni_icc_set_bw(&port->se);
++		if (port->clk_rate)
++			dev_pm_opp_set_rate(dev, 0);
++		return 0;
++	}
+ 
+-	return 0;
++	/*
++	 * uart_suspend_port() drops the port's runtime PM reference, but the PM
++	 * core holds its own across system sleep, so the runtime suspend
++	 * callback never runs for an open port: the serial engine and wrapper
++	 * clocks (and with them a GCC PLL and XO) stay on for the whole sleep.
++	 * Force it, which also drops the CX and bus votes.
++	 */
++	ret = pm_runtime_force_suspend(dev);
++	if (ret) {
++		uart_resume_port(private_data->drv, uport);
++		if (!uart_console(uport))
++			enable_irq(uport->irq);
++	}
++
++	return ret;
+ }
+ 
+ static int qcom_geni_serial_resume(struct device *dev)
+@@ -2021,11 +2036,20 @@ static int qcom_geni_serial_resume(struct device *dev)
+ 	struct uart_port *uport = &port->uport;
+ 	struct qcom_geni_private_data *private_data = uport->private_data;
+ 
+-	/* Votes back before the port runs again (see qcom_geni_serial_suspend()). */
+-	if (port->clk_rate)
+-		dev_pm_opp_set_rate(dev, port->clk_rate);
+-	geni_icc_set_tag(&port->se, QCOM_ICC_TAG_ALWAYS);
+-	geni_icc_set_bw(&port->se);
++	/* Undo what qcom_geni_serial_suspend() did, before the port runs again. */
++	if (uart_console(uport) && !console_suspend_enabled) {
++		if (port->clk_rate)
++			dev_pm_opp_set_rate(dev, port->clk_rate);
++		geni_icc_set_tag(&port->se, QCOM_ICC_TAG_ALWAYS);
++		geni_icc_set_bw(&port->se);
++	} else {
++		ret = pm_runtime_force_resume(dev);
++		if (ret) {
++			if (!uart_console(uport))
++				enable_irq(uport->irq);
++			return ret;
++		}
++	}
+ 
+ 	ret = uart_resume_port(private_data->drv, uport);
+ 	/* Balance the disable_irq() taken in qcom_geni_serial_suspend(). */
