@@ -100,3 +100,5 @@
 &remoteproc_soccp {
 	firmware-name = "qcom/sm8750/ayn/odin3/soccp.mbn";
 };
+/* Sleep test D: no PCIe sleep-set vote (MC0/SH0/CN0 stayed at 1 in the RPMh sleep set); SoCCP now covers the wake path. */
+&pcie0_opp_table { /delete-node/ opp-suspend-1; };
