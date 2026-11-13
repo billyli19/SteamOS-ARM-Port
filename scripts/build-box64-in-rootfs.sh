@@ -51,11 +51,14 @@ if [[ -f "$R/etc/binfmt.d/box64.conf" ]]; then
   cp -a "$R/etc/binfmt.d/box64.conf" "$R/usr/lib/binfmt.d/box64.conf"
 fi
 
-# What the binary itself requires from glibc (its version-needs section), not
-# any string inside it: box64 carries glibc version names for the programs it
-# emulates, and newer box64 knows GLIBC_2.43 without needing it.
-if readelf -V "$R/usr/local/bin/box64" | grep -q 'Name: GLIBC_2\.43'; then
-  echo "ERROR: box64 still needs GLIBC_2.43 — not a Frame build" >&2
+# The real question is whether this box64 starts on the image's own glibc, so
+# ask it: run it inside the rootfs. (The old test looked for GLIBC_2.43, which
+# was right while the Frame base had glibc 2.39; a newer base may ship 2.43
+# itself, and then needing it is correct.)
+echo "==> rootfs glibc: $(run /usr/bin/ldd --version 2>/dev/null | head -1)"
+if ! run /usr/local/bin/box64 --version; then
+  echo "ERROR: box64 does not start inside the image rootfs" >&2
+  readelf -V "$R/usr/local/bin/box64" | grep -o 'Name: GLIBC_[0-9.]*' | sort -u | tail -3 >&2 || true
   exit 1
 fi
-echo "OK: Box64 installed into $R (no GLIBC_2.43)"
+echo "OK: Box64 installed into $R and starts there"

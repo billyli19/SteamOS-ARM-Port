@@ -382,3 +382,4 @@ jobs:
     - plan
     - kernel
     - mesa
+# image retry 3: box64 start test instead of the GLIBC_2.43 text test
