@@ -136,8 +136,8 @@ jobs:
               -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
               -e 's/"//g' -e "s/'//g" versions.env >> "$GITHUB_ENV"
         else
-          echo "STEAMOS_BUILD=20261002.6232440" >> "$GITHUB_ENV"
-          echo "STEAMOS_BUNDLE=deckard-20261002.6232440-0.5.3" >> "$GITHUB_ENV"
+          echo "::error::versions.env is missing"; exit 1
+          true
         fi
     - name: Set up Python venv (Meson >= 1.4)
       run: |
@@ -225,8 +225,8 @@ jobs:
               -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
               -e 's/"//g' -e "s/'//g" versions.env >> "$GITHUB_ENV"
         else
-          echo "STEAMOS_BUILD=20261002.6232440" >> "$GITHUB_ENV"
-          echo "STEAMOS_BUNDLE=deckard-20261002.6232440-0.5.3" >> "$GITHUB_ENV"
+          echo "::error::versions.env is missing"; exit 1
+          true
           echo "STEAM_ARM_CHANNEL=steamdeck_publicbeta" >> "$GITHUB_ENV"
         fi
     - name: Download kernel artifact
@@ -294,6 +294,10 @@ jobs:
         fi
         echo "=== Disk after seed check ==="
         df -h /
+    - name: Fetch the box64 source
+      run: |
+        [ -f "${STEAMOS_WORK}/box64/CMakeLists.txt" ] || \
+          git clone --recursive --depth 1 https://github.com/ptitSeb/box64 "${STEAMOS_WORK}/box64"
     - name: Build Zaviya Odin 3 image
       run: |
         if true; then   # always the kernel built in this run
