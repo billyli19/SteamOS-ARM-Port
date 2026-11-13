@@ -1,0 +1,58 @@
+From: Armada <noreply@armada.local>
+Subject: [PATCH] soundwire: qcom: force runtime suspend across system sleep
+
+The controller only has runtime PM ops, and a peripheral kept
+runtime-active (the WCD9390 on the AYN Odin 3, held for jack detection)
+keeps it active through s2idle, together with the LPASS macro clocks it
+uses. Force the runtime suspend across system sleep, so jack detection
+keeps working while awake but the ADSP can release LPASS in s2idle.
+
+Only do this on buses with clock stop. Without it (the WSA881x speaker
+bus on SM8250), the runtime resume resets the controller and loses the
+ports of any stream still open, so leave those buses as they were.
+
+Taken from ArmadaOS (packages/kernel/patches/0564).
+
+---
+diff --git a/drivers/soundwire/qcom.c b/drivers/soundwire/qcom.c
+index b0e1e7fa8..95ad8e16a 100644
+--- a/drivers/soundwire/qcom.c
++++ b/drivers/soundwire/qcom.c
+@@ -227,6 +227,7 @@ struct qcom_swrm_ctrl {
+ 	u32 slave_status;
+ 	u32 wr_fifo_depth;
+ 	bool clock_stop_not_supported;
++	bool sleep_suspended;
+ 	/* Per-Slave SCP_ADDRPAGE1/2 shadow; -1 = unknown. */
+ 	s16 page1_cache[SDW_MAX_DEVICES + 1];
+ 	s16 page2_cache[SDW_MAX_DEVICES + 1];
+@@ -1927,7 +1928,29 @@ static int __maybe_unused swrm_runtime_suspend(struct device *dev)
+ 	return 0;
+ }
+ 
++static int __maybe_unused swrm_suspend(struct device *dev)
++{
++	struct qcom_swrm_ctrl *ctrl = dev_get_drvdata(dev);
++
++	ctrl->sleep_suspended = !ctrl->clock_stop_not_supported;
++	if (!ctrl->sleep_suspended)
++		return 0;
++
++	return pm_runtime_force_suspend(dev);
++}
++
++static int __maybe_unused swrm_resume(struct device *dev)
++{
++	struct qcom_swrm_ctrl *ctrl = dev_get_drvdata(dev);
++
++	if (!ctrl->sleep_suspended)
++		return 0;
++
++	return pm_runtime_force_resume(dev);
++}
++
+ static const struct dev_pm_ops swrm_dev_pm_ops = {
++	SET_SYSTEM_SLEEP_PM_OPS(swrm_suspend, swrm_resume)
+ 	SET_RUNTIME_PM_OPS(swrm_runtime_suspend, swrm_runtime_resume, NULL)
+ };
+ 

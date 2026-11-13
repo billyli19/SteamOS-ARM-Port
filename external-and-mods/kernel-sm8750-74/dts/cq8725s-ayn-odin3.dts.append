@@ -106,3 +106,20 @@
 			"DMIC3", "MIC BIAS3",
 			"TX SWR_INPUT6", "DMIC3_OUTPUT";
 };
+
+/*
+ * The bootloader's early SoCCP image stays in D0 and keeps the SoC out of CX
+ * shutdown and DDR low power in sleep. This one (from the device's own
+ * firmware) parks itself in D3 (patches 0093 and 0094, as ArmadaOS). Without
+ * the file the driver keeps its bus vote: sleep works as before, no deeper.
+ */
+&remoteproc_soccp {
+	firmware-name = "qcom/sm8750/ayn/odin3/soccp.mbn";
+};
+
+/*
+ * The PCIe suspend OPP (patch 0008) leaves a vote on DDR (MC0), LLCC (SH0) and
+ * the config NoC (CN0) in the RPMh sleep set. With the SoCCP managed the link
+ * comes back without it.
+ */
+&pcie0_opp_table { /delete-node/ opp-suspend-1; };
