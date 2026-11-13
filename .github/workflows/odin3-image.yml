@@ -1,0 +1,321 @@
+# Personal Odin 3 build: kernel, graphics stack and the full image in one run.
+# Generated from build-kernel-sm8750.yml, build-mesa-sm8750.yml and
+# build-image-sm8750.yml; the image job takes the other two from this same run.
+name: Odin 3 image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [odin3]
+    paths:
+      - '.github/workflows/odin3-image.yml'
+
+concurrency:
+  group: odin3-image
+  cancel-in-progress: true
+
+jobs:
+  kernel:
+    runs-on: ubuntu-24.04-arm
+    container:
+      image: fedora:43
+    env:
+      WORK: ${{ github.workspace }}/kernel-work
+      ROCKNIX_DIR: ${{ github.workspace }}/rocknix-20260901
+    steps:
+    - name: Install build dependencies
+      run: |
+        dnf install -y --setopt=install_weak_deps=False \
+          gcc gcc-c++ make bc bison flex python3 curl tar xz gzip cpio \
+          kmod patch perl rsync openssl-devel elfutils-libelf-devel \
+          busybox file diffutils git findutils dwarves zstd \
+          rust rust-src bindgen-cli clang
+        git config --global --add safe.directory '*'
+    - name: Checkout repository
+      uses: actions/checkout@v7
+    - name: Check initial disk space
+      run: df -h /
+    - name: Sparse-clone base distribution
+      run: |
+        ROCKNIX_REF=$(grep '^ROCKNIX_REF=' external-and-mods/kernel-sm8750/soc.env | cut -d= -f2)
+        echo "Pinned base ref: $ROCKNIX_REF"
+        git clone --depth 1 --branch "$ROCKNIX_REF" --sparse \
+          https://github.com/ROCKNIX/distribution.git "$ROCKNIX_DIR"
+        cd "$ROCKNIX_DIR"
+        git sparse-checkout set \
+          projects/ROCKNIX/packages/linux/patches \
+          projects/ROCKNIX/devices/SM8750
+    - name: Cache downloaded sources
+      uses: actions/cache@v6
+      with:
+        path: ${{ env.WORK }}/cache
+        key: kernel-cache-sm8750-${{ hashFiles('external-and-mods/kernel-sm8750/soc.env') }}
+        restore-keys: kernel-cache-sm8750-
+    - name: Build kernel
+      run: bash external-and-mods/kernel-sm8750/build.sh
+    - name: Print kernel release and compiler info
+      run: |
+        KREL=$(basename "$(readlink -f "$WORK/output/current")")
+        echo "### Kernel: $KREL" >> "$GITHUB_STEP_SUMMARY"
+        echo "Kernel release: $KREL"
+        echo "Compiler banner: $(gcc --version | head -n1)"
+        echo "Linker banner: $(ld --version | head -n1)"
+        echo "CONFIG_RELR: $(grep 'CONFIG_RELR' "$WORK/output/current/config-"* || echo 'not found')"
+    - name: Package kernel output
+      run: tar -czf kernel-sm8750.tar.gz -C "$WORK/output/current" .
+    - name: Upload artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: kernel-sm8750
+        path: kernel-sm8750.tar.gz
+        retention-days: 30
+    - name: Final disk space
+      if: always()
+      run: df -h /
+  mesa:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    env:
+      MESA_WORK: ${{ github.workspace }}/mesa-work
+    steps:
+    - name: Free up disk space
+      run: |
+        echo "=== Before cleanup ==="
+        df -h /
+        sudo rm -rf /usr/local/lib/android /usr/share/dotnet \
+          /opt/hostedtoolcache /usr/local/.ghcup /usr/share/swift \
+          /usr/local/share/boost /opt/az
+        sudo docker image prune -af 2>/dev/null || true
+        echo "=== After cleanup ==="
+        df -h /
+    - name: Configure kernel settings for bwrap
+      run: |
+        echo 0 | sudo tee /proc/sys/kernel/apparmor_restrict_unprivileged_userns || true
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          python3-requests python3-zstandard python3-venv python3-packaging \
+          bubblewrap squashfs-tools rsync zstd unzip \
+          clang lld llvm \
+          gcc-x86-64-linux-gnu g++-x86-64-linux-gnu \
+          gcc-i686-linux-gnu g++-i686-linux-gnu \
+          libc6-dev-i386-cross \
+          ninja-build pkg-config glslang-tools
+    - name: Checkout repository
+      uses: actions/checkout@v7
+    - name: Load version manifest
+      run: |
+        if [ -f versions.env ]; then
+          sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' \
+              -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+              -e 's/"//g' -e "s/'//g" versions.env >> "$GITHUB_ENV"
+        else
+          echo "STEAMOS_BUILD=20261002.6232440" >> "$GITHUB_ENV"
+          echo "STEAMOS_BUNDLE=deckard-20261002.6232440-0.5.3" >> "$GITHUB_ENV"
+        fi
+    - name: Set up Python venv (Meson >= 1.4)
+      run: |
+        python3 -m venv "$MESA_WORK/venv"
+        "$MESA_WORK/venv/bin/pip" install meson mako pyyaml packaging ply
+    - name: Download SteamOS rootfs
+      run: |
+        STEAMOS_URL="https://steamdeck-images.steamos.cloud/vr/${STEAMOS_BUILD}"
+        echo "Downloading RAUC bundle ..."
+        curl -fL -o bundle.raucb "${STEAMOS_URL}/${STEAMOS_BUNDLE}.raucb"
+        echo "Extracting casync index ..."
+        unsquashfs -q -d bundle/ bundle.raucb
+        sha=$(sed -n '/^\[image.rootfs\]/,/^\[/{s/^sha256=//p}' bundle/manifest.raucm)
+        echo "Reassembling rootfs.img (SHA256: $sha) ..."
+        python3 scripts/extract_rootfs.py \
+          --caibx bundle/rootfs.img.caibx \
+          --output rootfs.img \
+          --store "${STEAMOS_URL}/${STEAMOS_BUNDLE}.castr" \
+          --store "https://steamdeck-images.steamos.cloud/vr/chunks.castr" \
+          --expected-sha256 "$sha"
+        echo "Mounting and copying rootfs ..."
+        mkdir -p rootfs rootfs-ro
+        sudo mount -o loop,ro rootfs.img rootfs-ro
+        sudo rsync -aHAX --filter="-x btrfs.*" --numeric-ids rootfs-ro/ rootfs/
+        sudo umount rootfs-ro
+        # Free disk: remove intermediate files (~18 GB saved)
+        rm -rf bundle bundle.raucb rootfs.img rootfs-ro
+        echo "=== After rootfs extraction ==="
+        df -h /
+    - name: Build Mesa (all 4 slices)
+      run: |
+        sudo env \
+          PATH="$MESA_WORK/venv/bin:$PATH" \
+          MESA_WORK="$MESA_WORK" \
+          bash scripts/build-mesa.sh rootfs prepare aarch64 x86_64 i386 android
+        echo "=== After Mesa build ==="
+        df -h /
+    - name: Compress output
+      run: |
+        echo "Output slices:"
+        du -sh "$MESA_WORK/out/"*/
+        tar -cf mesa-sm8750.tar.zst --zstd -C "$MESA_WORK/out" .
+        ls -lh mesa-sm8750.tar.zst
+    - name: Upload artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: mesa-sm8750
+        path: mesa-sm8750.tar.zst
+        retention-days: 30
+  image:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: read
+    env:
+      STEAMOS_WORK: ${{ github.workspace }}/sm8750-work
+    steps:
+    - name: Free up disk space
+      run: |
+        echo "=== Before cleanup ==="
+        df -h /
+        sudo rm -rf /usr/local/lib/android /usr/share/dotnet \
+          /opt/hostedtoolcache /usr/local/.ghcup /usr/share/swift \
+          /usr/local/share/boost /opt/az
+        sudo docker image prune -af 2>/dev/null || true
+        echo "=== After cleanup ==="
+        df -h /
+    - name: Configure kernel settings for bwrap
+      run: |
+        echo 0 | sudo tee /proc/sys/kernel/apparmor_restrict_unprivileged_userns || true
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          squashfs-tools dosfstools e2fsprogs fdisk uuid-runtime \
+          rsync curl python3 python3-requests python3-zstandard zstd \
+          gcc-aarch64-linux-gnu bubblewrap
+    - name: Checkout repository
+      uses: actions/checkout@v7
+    - name: Load version manifest
+      run: |
+        if [ -f versions.env ]; then
+          sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' \
+              -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+              -e 's/"//g' -e "s/'//g" versions.env >> "$GITHUB_ENV"
+        else
+          echo "STEAMOS_BUILD=20261002.6232440" >> "$GITHUB_ENV"
+          echo "STEAMOS_BUNDLE=deckard-20261002.6232440-0.5.3" >> "$GITHUB_ENV"
+          echo "STEAM_ARM_CHANNEL=steamdeck_publicbeta" >> "$GITHUB_ENV"
+        fi
+    - name: Download kernel artifact
+      uses: actions/download-artifact@v7
+      with:
+        name: kernel-sm8750
+        path: ./kernel-download/
+    - name: Stage custom kernel
+      run: |
+        # The kernel build (SM8750_KERNEL=source) produces output in a
+        # release-named directory (e.g. 7.2.0-sm8750-steamos). Create the
+        # structure that ensure_kernel() expects for the source path.
+        KWORK="${STEAMOS_WORK}/kernel-sm8750-src"
+        mkdir -p "$KWORK/output/tmp"
+        tar -xzf kernel-download/kernel-sm8750.tar.gz -C "$KWORK/output/tmp"
+        # Discover the exact kernel release name from the modules directory:
+        KREL="$(basename "$KWORK/output/tmp/modules/"*)"
+        echo "Kernel release detected: $KREL"
+        KREL_DIR="$KWORK/output/$KREL"
+        rm -rf "$KREL_DIR"
+        mv "$KWORK/output/tmp" "$KREL_DIR"
+        # Create the 'current' symlink that ensure_kernel looks for
+        ln -sfn "$KREL" "$KWORK/output/current"
+        echo "Kernel staged at $KREL_DIR"
+        ls -la "$KREL_DIR/boot/"
+        echo "Kernel config FTRACE check:"
+        grep -c 'CONFIG_FTRACE=y' "$KREL_DIR"/config-* || echo "No config file (prebuilt kernel)"
+    - name: Download Mesa artifact
+      uses: actions/download-artifact@v7
+      with:
+        name: mesa-sm8750
+        path: ./mesa-download/
+    - name: Stage Mesa stack
+      run: |
+        MESA_DIR="${STEAMOS_WORK}/mesa-stack"
+        mkdir -p "$MESA_DIR"
+        tar -xf mesa-download/mesa-sm8750.tar.zst --zstd -C "$MESA_DIR"
+        rm -rf ./mesa-download
+        echo "Mesa staged at $MESA_DIR"
+        ls -la "$MESA_DIR/"
+        echo "=== Disk after staging ==="
+        df -h /
+    - name: Restore Steam ARM seed from cache
+      id: cache-steam-seed
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ env.STEAMOS_WORK }}/steam-arm-seed
+        key: steam-seed-${{ env.STEAMOS_BUILD }}-${{ env.STEAM_ARM_CHANNEL || 'steamdeck_publicbeta' }}
+    - name: Check Steam ARM seed cache status
+      run: |
+        is_valid_seed=false
+        if [ -d "${{ env.STEAMOS_WORK }}/steam-arm-seed" ]; then
+          if [ -x ./scripts/install-complete-steam-client.sh ] && ./scripts/install-complete-steam-client.sh --check "${{ env.STEAMOS_WORK }}/steam-arm-seed" 2>/dev/null; then
+            is_valid_seed=true
+          elif [ -f "${{ env.STEAMOS_WORK }}/steam-arm-seed/steamrtarm64/steam" ] || [ -f "${{ env.STEAMOS_WORK }}/steam-arm-seed/.odin-complete-client" ]; then
+            is_valid_seed=true
+          fi
+        fi
+        if [ "$is_valid_seed" = "true" ]; then
+          echo "Steam seed restored from cache:"
+          ls -la "${{ env.STEAMOS_WORK }}/steam-arm-seed/"
+        else
+          echo "Cache miss for Steam seed. It will be bootstrapped headlessly from upstream rootfs during image build."
+          rm -rf "${{ env.STEAMOS_WORK }}/steam-arm-seed"
+        fi
+        echo "=== Disk after seed check ==="
+        df -h /
+    - name: Build Zaviya Odin 3 image
+      run: |
+        if true; then   # always the kernel built in this run
+          export SM8750_KERNEL=source
+          export SM8750_KERNEL_WORK="${STEAMOS_WORK}/kernel-sm8750-src"
+          echo "Using custom built kernel from source"
+        else
+          export SM8750_KERNEL=prebuilt
+          echo "Using official verified prebuilt kernel"
+        fi
+        export MESA_STACK="${STEAMOS_WORK}/mesa-stack"
+        export STEAM_ARM_CHANNEL="${STEAM_ARM_CHANNEL:-steamdeck_publicbeta}"
+        ./make-steamos-sm8750.sh
+    - name: Check if Steam seed exists to cache
+      id: check-seed-exists
+      run: |
+        if [ -d "${{ env.STEAMOS_WORK }}/steam-arm-seed" ] && [ -n "$(ls -A "${{ env.STEAMOS_WORK }}/steam-arm-seed" 2>/dev/null)" ]; then
+          echo "has_seed=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "has_seed=false" >> "$GITHUB_OUTPUT"
+        fi
+    - name: Save Steam ARM seed to cache
+      if: steps.cache-steam-seed.outputs.cache-hit != 'true' && steps.check-seed-exists.outputs.has_seed == 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: ${{ env.STEAMOS_WORK }}/steam-arm-seed
+        key: steam-seed-${{ env.STEAMOS_BUILD }}-${{ env.STEAM_ARM_CHANNEL || 'steamdeck_publicbeta' }}
+    - name: Check disk after build
+      if: always()
+      run: df -h /
+    - name: Compress image
+      run: |
+        IMG="${STEAMOS_WORK}/steamos-odin3.img"
+        echo "Compressing $IMG ..."
+        ls -lh "$IMG"
+        zstd -T0 -3 "$IMG" -o zaviya-odin3.img.zst
+        ls -lh zaviya-odin3.img.zst
+        sha256sum zaviya-odin3.img.zst > zaviya-odin3.img.zst.sha256
+    - name: Upload image artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: zaviya-odin3-image
+        path: |
+          zaviya-odin3.img.zst
+          zaviya-odin3.img.zst.sha256
+        retention-days: 14
+        compression-level: 0
+    needs:
+    - kernel
+    - mesa
