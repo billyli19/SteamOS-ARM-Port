@@ -1,0 +1,106 @@
+name: Build SM8750 Kernel 7.4 (standby test, temporary)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/sm8750-deep-sleep-v15]
+    paths:
+      - '.github/workflows/build-kernel-sm8750-74-standby.yml'
+      - 'external-and-mods/kernel-sm8750-74/**'
+      - 'external-and-mods/kernel-sm8750/soc.env'
+
+# Temporary: each build is also published to the 'sleep-test' pre-release so
+# it can be installed on a device without a GitHub login.
+permissions:
+  contents: write
+
+concurrency:
+  group: standby-test-kernel-74
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    container:
+      image: fedora:43
+
+    env:
+      WORK: ${{ github.workspace }}/kernel-work
+      ROCKNIX_DIR: ${{ github.workspace }}/rocknix-20260901
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            gcc gcc-c++ make bc bison flex python3 curl tar xz gzip cpio \
+            kmod patch perl rsync openssl-devel elfutils-libelf-devel \
+            busybox file diffutils git findutils dwarves zstd \
+            rust rust-src bindgen-cli clang gh
+          git config --global --add safe.directory '*'
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Check initial disk space
+        run: df -h /
+
+      # The build needs a git checkout of ROCKNIX/distribution at the
+      # pinned tag. The repo is huge so this sparse-checks out only the paths
+      # that build.sh + soc.env actually reference.
+      - name: Sparse-clone base distribution
+        run: |
+          ROCKNIX_REF=$(grep '^ROCKNIX_REF=' external-and-mods/kernel-sm8750/soc.env | cut -d= -f2)
+          echo "Pinned base ref: $ROCKNIX_REF"
+          git clone --depth 1 --branch "$ROCKNIX_REF" --sparse \
+            https://github.com/ROCKNIX/distribution.git "$ROCKNIX_DIR"
+          cd "$ROCKNIX_DIR"
+          git sparse-checkout set \
+            projects/ROCKNIX/packages/linux/patches \
+            projects/ROCKNIX/devices/SM8750
+
+      - name: Cache downloaded sources
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.WORK }}/cache
+          key: kernel-cache-sm8750-74-${{ hashFiles('external-and-mods/kernel-sm8750/soc.env') }}
+          restore-keys: kernel-cache-sm8750-74-
+
+      - name: Build kernel
+        run: bash external-and-mods/kernel-sm8750/build.sh
+
+      - name: Print kernel release and compiler info
+        run: |
+          KREL=$(basename "$(readlink -f "$WORK/output/current")")
+          echo "### Kernel: $KREL" >> "$GITHUB_STEP_SUMMARY"
+          echo "Kernel release: $KREL"
+          echo "Compiler banner: $(gcc --version | head -n1)"
+          echo "Linker banner: $(ld --version | head -n1)"
+          echo "CONFIG_RELR: $(grep 'CONFIG_RELR' "$WORK/output/current/config-"* || echo 'not found')"
+
+      - name: Package kernel output
+        run: tar -czf kernel-sm8750-74.tar.gz -C "$WORK/output/current" .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: kernel-sm8750-74
+          path: kernel-sm8750-74.tar.gz
+          retention-days: 30
+
+      - name: Publish to the sleep-test pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          sha256sum kernel-sm8750-74.tar.gz | cut -d' ' -f1 > kernel-sm8750-74.sha256
+          echo "run=${GITHUB_RUN_NUMBER} commit=${GITHUB_SHA} built=$(date -u +%FT%TZ) base=zaviya-1.5" >> kernel-sm8750-74.sha256
+          cat kernel-sm8750-74.sha256
+          gh release view sleep-test >/dev/null 2>&1 || gh release create sleep-test \
+            --prerelease --target "${GITHUB_SHA}" --title "Sleep test kernels (temporary)" \
+            --notes "Temporary test kernels for the Odin 3 deep-sleep work. Not for general use."
+          gh release upload sleep-test kernel-sm8750-74.tar.gz --clobber
+          gh release upload sleep-test kernel-sm8750-74.sha256 --clobber
+
+      - name: Final disk space
+        if: always()
+        run: df -h /
