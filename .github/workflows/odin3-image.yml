@@ -51,6 +51,23 @@ jobs:
         path: ${{ env.WORK }}/cache
         key: kernel-cache-sm8750-${{ hashFiles('external-and-mods/kernel-sm8750/soc.env') }}
         restore-keys: kernel-cache-sm8750-
+    - name: Kernel source from GitHub's mirror when kernel.org is unreachable
+      run: |
+        dest="$WORK/cache/linux-sm8750-linux-7.4-rc1.tar.gz"
+        if [ -s "$dest" ]; then echo "kernel source already cached"; exit 0; fi
+        for try in 1 2; do
+          if curl -fsSI --connect-timeout 20 --max-time 40 https://git.kernel.org/torvalds/t/linux-7.4-rc1.tar.gz >/dev/null; then
+            echo "kernel.org answers: the build downloads from there"; exit 0
+          fi
+        done
+        echo "kernel.org does not answer: taking tag v7.4-rc1 from github.com/torvalds/linux"
+        git clone -q --depth 1 --branch v7.4-rc1 https://github.com/torvalds/linux.git /tmp/linux-src
+        mkdir -p "$WORK/cache"
+        git -C /tmp/linux-src archive --format=tar.gz --prefix=linux-7.4-rc1/ HEAD > "$dest"
+        ls -la "$dest"
+        rm -rf /tmp/linux-src
+        # Same tag, but not the same tarball bytes as kernel.org's snapshot: skip that checksum.
+        echo "KSRC_SHA256=" >> "$GITHUB_ENV"
     - name: Build kernel
       run: bash external-and-mods/kernel-sm8750/build.sh
     - name: Print kernel release and compiler info
