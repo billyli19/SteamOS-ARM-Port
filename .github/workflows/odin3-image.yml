@@ -327,6 +327,43 @@ jobs:
         fi
         echo "=== Disk after seed check ==="
         df -h /
+    - name: Steam client from the official Zaviya 1.5 image (when none is cached)
+      run: |
+        # The image needs a complete Steam ARM client. Upstream copies it from
+        # the maintainer's own machine; here it comes out of the published
+        # Zaviya 1.5 image (checksum-verified), which carries the same client
+        # with no account data.
+        SEED="${STEAMOS_WORK}/steam-arm-seed"
+        if ./scripts/install-complete-steam-client.sh --check "$SEED" 2>/dev/null; then
+          echo "Steam client already cached"; exit 0
+        fi
+        T="${RUNNER_TEMP}/zaviya"; mkdir -p "$T" "$SEED"; cd "$T"
+        df -h . | tail -1
+        curl -fL --retry 3 -o SHA256SUMS https://github.com/hashtagbasit/Zaviya/releases/download/v1.5/SHA256SUMS
+        curl -fL --retry 3 -o zaviya-sm8750-1.5.0.img.zst https://downloads.zaviyaos.workers.dev/1.5/zaviya-sm8750-1.5.0.img.zst
+        grep 'zaviya-sm8750-1.5.0.img.zst' SHA256SUMS | sha256sum -c -
+        zstd -d --rm --sparse zaviya-sm8750-1.5.0.img.zst -o z.img
+        ls -las z.img; df -h . | tail -1
+        LOOP="$(sudo losetup -fP --show -r z.img)"
+        sudo mkdir -p /mnt/zp
+        found=""
+        for part in "${LOOP}"p*; do
+          sudo mount -o ro,noload "$part" /mnt/zp 2>/dev/null || sudo mount -o ro "$part" /mnt/zp 2>/dev/null || continue
+          for c in /mnt/zp/steamos/.local/share/Steam /mnt/zp/home/steamos/.local/share/Steam; do
+            if [ -z "$found" ] && sudo test -x "$c/steamrtarm64/steam"; then
+              echo "Steam client found on $part at ${c#/mnt/zp}"
+              sudo rsync -a --exclude userdata --exclude logs --exclude 'steamapps/common' --exclude 'steamapps/compatdata' --exclude 'steamapps/shadercache' "$c/" "$SEED/"
+              found=1
+            fi
+          done
+          sudo umount /mnt/zp
+        done
+        sudo losetup -d "$LOOP"; rm -f z.img
+        sudo chown -R "$(id -u):$(id -g)" "$SEED"
+        [ -n "$found" ] || { echo "::error::no Steam client found inside the Zaviya image"; exit 1; }
+        cd "$GITHUB_WORKSPACE"
+        ./scripts/install-complete-steam-client.sh --check "$SEED" || { echo "::error::the extracted Steam client is not complete"; ls -la "$SEED" "$SEED/package" | head -40; exit 1; }
+        du -sh "$SEED"
     - name: Fetch the box64 source
       run: |
         [ -f "${STEAMOS_WORK}/box64/CMakeLists.txt" ] || \
@@ -342,6 +379,7 @@ jobs:
           echo "Using official verified prebuilt kernel"
         fi
         export MESA_STACK="${STEAMOS_WORK}/mesa-stack"
+        export STEAM_ARM_SEED="${STEAMOS_WORK}/steam-arm-seed"
         export STEAM_ARM_CHANNEL="${STEAM_ARM_CHANNEL:-steamdeck_publicbeta}"
         ./make-steamos-sm8750.sh
     - name: Check if Steam seed exists to cache
