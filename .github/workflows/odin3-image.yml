@@ -51,23 +51,31 @@ jobs:
         path: ${{ env.WORK }}/cache
         key: kernel-cache-sm8750-${{ hashFiles('external-and-mods/kernel-sm8750/soc.env') }}
         restore-keys: kernel-cache-sm8750-
-    - name: Kernel source from GitHub's mirror when kernel.org is unreachable
+    - name: Fetch the kernel source and Wi-Fi regulatory data without kernel.org
       run: |
+        # The runners often cannot reach git.kernel.org, so nothing in this
+        # build depends on it: the same files come from GitHub and Fedora.
+        mkdir -p "$WORK/cache/wireless-regdb"
         dest="$WORK/cache/linux-sm8750-linux-7.4-rc1.tar.gz"
-        if [ -s "$dest" ]; then echo "kernel source already cached"; exit 0; fi
-        for try in 1 2; do
-          if curl -fsSI --connect-timeout 20 --max-time 40 https://git.kernel.org/torvalds/t/linux-7.4-rc1.tar.gz >/dev/null; then
-            echo "kernel.org answers: the build downloads from there"; exit 0
-          fi
-        done
-        echo "kernel.org does not answer: taking tag v7.4-rc1 from github.com/torvalds/linux"
-        git clone -q --depth 1 --branch v7.4-rc1 https://github.com/torvalds/linux.git /tmp/linux-src
-        mkdir -p "$WORK/cache"
-        git -C /tmp/linux-src archive --format=tar.gz --prefix=linux-7.4-rc1/ HEAD > "$dest"
+        if [ ! -s "$dest" ]; then
+          git clone -q --depth 1 --branch v7.4-rc1 https://github.com/torvalds/linux.git /tmp/linux-src
+          git -C /tmp/linux-src archive --format=tar.gz --prefix=linux-7.4-rc1/ HEAD > "$dest"
+          rm -rf /tmp/linux-src
+        fi
         ls -la "$dest"
-        rm -rf /tmp/linux-src
         # Same tag, but not the same tarball bytes as kernel.org's snapshot: skip that checksum.
         echo "KSRC_SHA256=" >> "$GITHUB_ENV"
+        dnf install -y wireless-regdb xz zstd
+        for f in regulatory.db regulatory.db.p7s; do
+          out="$WORK/cache/wireless-regdb/$f"
+          [ -s "$out" ] && continue
+          if   [ -f "/usr/lib/firmware/$f" ];     then cp -L "/usr/lib/firmware/$f" "$out"
+          elif [ -f "/usr/lib/firmware/$f.xz" ];  then xz -dc "/usr/lib/firmware/$f.xz" > "$out"
+          elif [ -f "/usr/lib/firmware/$f.zst" ]; then zstd -dc "/usr/lib/firmware/$f.zst" > "$out"
+          else echo "::error::$f is not in Fedora's wireless-regdb package"; rpm -ql wireless-regdb; exit 1
+          fi
+        done
+        ls -la "$WORK/cache/wireless-regdb"
     - name: Build kernel
       run: bash external-and-mods/kernel-sm8750/build.sh
     - name: Print kernel release and compiler info
