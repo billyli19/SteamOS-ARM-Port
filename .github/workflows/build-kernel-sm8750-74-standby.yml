@@ -104,3 +104,4 @@ jobs:
       - name: Final disk space
         if: always()
         run: df -h /
+# retry: git.kernel.org was unreachable from the runner on the first run
