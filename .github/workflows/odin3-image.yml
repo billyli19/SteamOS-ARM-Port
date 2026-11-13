@@ -455,3 +455,4 @@ jobs:
     - mesa
 # image retry 3: box64 start test instead of the GLIBC_2.43 text test
 # image retry 5: optional KDE extras no longer required by the final check
+# run 11: KDE extras get extra-cmake-modules before they are built

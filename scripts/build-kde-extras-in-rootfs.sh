@@ -45,8 +45,12 @@ log() { printf '==> [kde-extras] %s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 command -v bwrap >/dev/null || die "bwrap required (apt install bubblewrap)"
-[[ -x "$R/usr/bin/cmake" && -x "$R/usr/bin/g++" && -d "$R/usr/share/ECM" ]] \
-  || die "rootfs needs cmake, g++ and extra-cmake-modules"
+# Valve's rootfs has no extra-cmake-modules of its own.
+"$(dirname "${BASH_SOURCE[0]}")/ensure-ecm-in-rootfs.sh" "$R"
+[[ -x "$R/usr/bin/cmake" ]] || die "rootfs has no cmake"
+[[ -x "$R/usr/bin/g++" ]] || die "rootfs has no g++"
+[[ -x "$R/usr/bin/ninja" ]] || die "rootfs has no ninja"
+[[ -d "$R/usr/share/ECM" ]] || die "rootfs has no extra-cmake-modules"
 
 fetch() {  # fetch NAME URL
   local name=$1 url=$2 u repo
