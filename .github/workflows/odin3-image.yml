@@ -319,3 +319,4 @@ jobs:
     needs:
     - kernel
     - mesa
+# build 1: Zaviya 1.5 base + all six PR 71 changes + standby kernel
