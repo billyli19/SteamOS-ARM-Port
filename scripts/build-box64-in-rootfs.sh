@@ -51,7 +51,10 @@ if [[ -f "$R/etc/binfmt.d/box64.conf" ]]; then
   cp -a "$R/etc/binfmt.d/box64.conf" "$R/usr/lib/binfmt.d/box64.conf"
 fi
 
-if strings "$R/usr/local/bin/box64" | grep -q 'GLIBC_2\.43'; then
+# What the binary itself requires from glibc (its version-needs section), not
+# any string inside it: box64 carries glibc version names for the programs it
+# emulates, and newer box64 knows GLIBC_2.43 without needing it.
+if readelf -V "$R/usr/local/bin/box64" | grep -q 'Name: GLIBC_2\.43'; then
   echo "ERROR: box64 still needs GLIBC_2.43 — not a Frame build" >&2
   exit 1
 fi

@@ -15,7 +15,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  plan:
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      reuse: ${{ steps.r.outputs.reuse }}
+    steps:
+    - uses: actions/checkout@v7
+    - id: r
+      name: Reuse kernel and Mesa from an earlier run?
+      run: |
+        id="$(tr -dc '0-9' < .github/odin3-reuse-run 2>/dev/null || true)"
+        echo "reuse=$id" >> "$GITHUB_OUTPUT"
+        echo "reuse run: ${id:-none (build everything)}"
   kernel:
+    needs: plan
+    if: needs.plan.outputs.reuse == ''
     runs-on: ubuntu-24.04-arm
     container:
       image: fedora:43
@@ -98,6 +112,8 @@ jobs:
       if: always()
       run: df -h /
   mesa:
+    needs: plan
+    if: needs.plan.outputs.reuse == ''
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 180
     env:
@@ -188,6 +204,7 @@ jobs:
         path: mesa-sm8750.tar.zst
         retention-days: 30
   image:
+    if: ${{ always() && needs.plan.result == 'success' && (needs.kernel.result == 'success' || needs.kernel.result == 'skipped') && (needs.mesa.result == 'success' || needs.mesa.result == 'skipped') }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
     permissions:
@@ -230,10 +247,18 @@ jobs:
           echo "STEAM_ARM_CHANNEL=steamdeck_publicbeta" >> "$GITHUB_ENV"
         fi
     - name: Download kernel artifact
+      if: needs.plan.outputs.reuse == ''
       uses: actions/download-artifact@v7
       with:
         name: kernel-sm8750
         path: ./kernel-download/
+    - name: Download kernel artifact (from an earlier run)
+      if: needs.plan.outputs.reuse != ''
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh run download "${{ needs.plan.outputs.reuse }}" --repo "${{ github.repository }}" -n kernel-sm8750 -D ./kernel-download/
+        ls -la ./kernel-download/
     - name: Stage custom kernel
       run: |
         # The kernel build (SM8750_KERNEL=source) produces output in a
@@ -255,10 +280,18 @@ jobs:
         echo "Kernel config FTRACE check:"
         grep -c 'CONFIG_FTRACE=y' "$KREL_DIR"/config-* || echo "No config file (prebuilt kernel)"
     - name: Download Mesa artifact
+      if: needs.plan.outputs.reuse == ''
       uses: actions/download-artifact@v7
       with:
         name: mesa-sm8750
         path: ./mesa-download/
+    - name: Download Mesa artifact (from an earlier run)
+      if: needs.plan.outputs.reuse != ''
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh run download "${{ needs.plan.outputs.reuse }}" --repo "${{ github.repository }}" -n mesa-sm8750 -D ./mesa-download/
+        ls -la ./mesa-download/
     - name: Stage Mesa stack
       run: |
         MESA_DIR="${STEAMOS_WORK}/mesa-stack"
@@ -346,6 +379,6 @@ jobs:
         retention-days: 14
         compression-level: 0
     needs:
+    - plan
     - kernel
     - mesa
-# build 1: Zaviya 1.5 base + all six PR 71 changes + standby kernel
