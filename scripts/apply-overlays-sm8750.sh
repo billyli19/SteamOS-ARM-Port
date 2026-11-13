@@ -934,7 +934,13 @@ find "$R" -xdev -name '._*' -type f -delete 2>/dev/null || true
 # Nothing we install may need a library or Qt/glibc version this rootfs lacks
 # (scripts/check-rootfs-libs.sh). No KDE Gear on this image.
 log "== library check"
-"${SCRIPT_DIR}/check-rootfs-libs.sh" "$R" --no-gear | tee -a "$LOG"
+# The KDE extras (Desktop Mode Bluetooth and display pages) are optional:
+# install-kde-extras.sh skips them when no kde-extras.tar was built, and then
+# the check must not insist on them. Game Mode has its own Bluetooth and
+# display settings.
+LIBCHECK_OPTS=(--no-gear)
+[[ -f "$R/usr/lib/qt6/plugins/plasma/kcms/systemsettings/kcm_bluetooth.so" ]] || LIBCHECK_OPTS+=(--no-extras)
+"${SCRIPT_DIR}/check-rootfs-libs.sh" "$R" "${LIBCHECK_OPTS[@]}" | tee -a "$LOG"
 
 # Last: what this image installed, and which release it is (see apply-overlays.sh).
 python3 "$ROOT/external-and-mods/konkr-update/konkr-update.py" record-inventory --root "$R" \
