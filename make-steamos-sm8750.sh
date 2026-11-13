@@ -32,6 +32,7 @@ fi
 SKIP_DOWNLOAD=0
 SKIP_APPLY=0
 IMAGE_ONLY=0
+ROOTFS_ONLY=0
 
 log() { printf '==> %s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -55,6 +56,8 @@ Usage: $0 [options]
   --skip-download   Reuse existing official rootfs chunks
   --skip-apply      Do not re-run scripts/apply-overlays-sm8750.sh
   --image-only      Only pack the .img from the current rootfs
+  --rootfs-only     Only download and unpack the official rootfs, then stop
+                    (so parts that build against it can be built first)
   --img PATH        Output image (default: ${IMG})
 
 Env: BOOT_MIB ROOT_MIB HOME_MIB STEAMOS_SM8750_IMG STEAMOS_ROOTFS KERNEL_OUT
@@ -68,6 +71,7 @@ while [[ $# -gt 0 ]]; do
     --skip-download) SKIP_DOWNLOAD=1 ;;
     --skip-apply) SKIP_APPLY=1 ;;
     --image-only) IMAGE_ONLY=1; SKIP_DOWNLOAD=1; SKIP_APPLY=1 ;;
+    --rootfs-only) ROOTFS_ONLY=1 ;;
     --img) IMG="$2"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown option: $1" ;;
@@ -380,6 +384,11 @@ EOF
 }
 
 mkdir -p "${WORKDIR}"
+if [[ "$ROOTFS_ONLY" -eq 1 ]]; then
+  ensure_official_rootfs
+  log "Official rootfs ready at ${R}"
+  exit 0
+fi
 ensure_kernel
 ensure_official_rootfs
 ensure_box64

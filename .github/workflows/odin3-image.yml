@@ -232,7 +232,7 @@ jobs:
         sudo apt-get install -y \
           squashfs-tools dosfstools e2fsprogs fdisk uuid-runtime \
           rsync curl python3 python3-requests python3-zstandard zstd \
-          gcc-aarch64-linux-gnu bubblewrap
+          gcc-aarch64-linux-gnu bubblewrap python3-pip patch git binutils xz-utils
     - name: Checkout repository
       uses: actions/checkout@v7
     - name: Load version manifest
@@ -368,6 +368,38 @@ jobs:
       run: |
         [ -f "${STEAMOS_WORK}/box64/CMakeLists.txt" ] || \
           git clone --recursive --depth 1 https://github.com/ptitSeb/box64 "${STEAMOS_WORK}/box64"
+    - name: Unpack Valve's system files
+      run: |
+        ./make-steamos-sm8750.sh --rootfs-only
+        df -h / | tail -1
+    - name: Build the three extra parts (hardware video decode, overlay GPU reading, Desktop Bluetooth/Display pages)
+      run: |
+        # Built against Valve's unpacked system, before the image is put
+        # together. All three are tried so one run shows every failure; the
+        # job stops here if any is missing, before the long image step.
+        R="${STEAMOS_WORK}/rootfs"
+        ok=""; bad=""
+        sudo mkdir -p /work && sudo chown "$(id -u):$(id -g)" /work
+        echo "::group::v4l2-vaapi (hardware video decode)"
+        if OUT=/work/v4l2-vaapi-build bash scripts/build-v4l2-vaapi.sh \
+           && [ -f /work/v4l2-vaapi-build/msm_drv_video.so ] && [ -f /work/v4l2-vaapi-build/libgbm.so.1 ]; then ok="$ok v4l2-vaapi"; else bad="$bad v4l2-vaapi"; fi
+        ln -sfn /work/v4l2-vaapi-build "${STEAMOS_WORK}/v4l2-vaapi-build"
+        echo "::endgroup::"
+        echo "::group::mangoapp (performance overlay GPU reading)"
+        if sudo env STEAMOS_WORK="${STEAMOS_WORK}" bash scripts/build-mangohud-in-rootfs.sh "$R" \
+           && [ -x "${STEAMOS_WORK}/mangohud-build/mangoapp" ]; then ok="$ok mangoapp"; else bad="$bad mangoapp"; fi
+        echo "::endgroup::"
+        echo "::group::KDE extras (Desktop Mode Bluetooth and Display pages)"
+        if sudo env STEAMOS_WORK="${STEAMOS_WORK}" bash scripts/build-kde-extras-in-rootfs.sh "$R" \
+           && [ -s "${STEAMOS_WORK}/kde-extras-build/kde-extras.tar" ]; then ok="$ok kde-extras"; else bad="$bad kde-extras"; fi
+        echo "::endgroup::"
+        # Mount points and scratch folders the builds left in Valve's tree.
+        sudo rmdir "$R/src" "$R/out" "$R/t" 2>/dev/null || true
+        echo "EXTRA PARTS BUILT:${ok:- none}"
+        echo "EXTRA PARTS FAILED:${bad:- none}"
+        { echo "### Extra parts"; echo "Built:${ok:- none}"; echo; echo "Failed:${bad:- none}"; } >> "$GITHUB_STEP_SUMMARY"
+        df -h / | tail -1
+        if [ -n "$bad" ]; then echo "::error::extra parts that failed to build:$bad"; exit 1; fi
     - name: Build Zaviya Odin 3 image
       run: |
         if true; then   # always the kernel built in this run
@@ -380,6 +412,7 @@ jobs:
         fi
         export MESA_STACK="${STEAMOS_WORK}/mesa-stack"
         export STEAM_ARM_SEED="${STEAMOS_WORK}/steam-arm-seed"
+        if [ -s "${STEAMOS_WORK}/kde-extras-build/kde-extras.tar" ]; then export KDE_EXTRAS="${STEAMOS_WORK}/kde-extras-build/kde-extras.tar"; fi
         export STEAM_ARM_CHANNEL="${STEAM_ARM_CHANNEL:-steamdeck_publicbeta}"
         ./make-steamos-sm8750.sh
     - name: Check if Steam seed exists to cache

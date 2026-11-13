@@ -49,13 +49,24 @@ command -v bwrap >/dev/null || die "bwrap required (apt install bubblewrap)"
   || die "rootfs needs cmake, g++ and extra-cmake-modules"
 
 fetch() {  # fetch NAME URL
-  local name=$1 url=$2
+  local name=$1 url=$2 u repo
   [[ -d "$SRC/$name" ]] && return 0
   mkdir -p "$SRC"
   log "fetching $name"
-  curl -fsSL --retry 3 -o "$SRC/$name.tar.xz" "$url"
-  tar -C "$SRC" -xJf "$SRC/$name.tar.xz"
+  # KDE moves superseded releases from stable/ to Attic/; try both, then the
+  # same tag on KDE's GitHub mirror.
+  for u in "$url" "${url/\/stable\//\/Attic\/}"; do
+    if curl -fsSL --retry 3 -o "$SRC/$name.tar.xz" "$u"; then
+      tar -C "$SRC" -xJf "$SRC/$name.tar.xz"
+      rm -f "$SRC/$name.tar.xz"
+      return 0
+    fi
+    log "not at $u"
+  done
   rm -f "$SRC/$name.tar.xz"
+  repo="${name%-*}"
+  git clone -q --depth 1 --branch "v${name##*-}" "https://github.com/KDE/${repo}.git" "$SRC/$name"
+  rm -rf "$SRC/$name/.git"
 }
 
 fetch "bluez-qt-${KF_VER}" "${KDE_MIRROR}/frameworks/${KF_VER%.*}/bluez-qt-${KF_VER}.tar.xz"

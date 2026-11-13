@@ -27,8 +27,26 @@ for p in "$ROOT/external-and-mods/MangoHud-qualcomm/patches/"*.patch; do
 done
 # v0.8.4 wants a newer meson than the rootfs has: a private copy for the build.
 [[ -d "$T/pymeson/mesonbuild" ]] || python3 -m pip install -q --target "$T/pymeson" "meson==1.8.2"
-bwrap --bind "$R" / --dev /dev --proc /proc --tmpfs /tmp --ro-bind /etc/resolv.conf /etc/resolv.conf \
-  bash -c 'set -e; export PYTHONPATH=/t/mangohud/pymeson
+# The bundled libraries (imgui, implot, spdlog, Vulkan headers) are fetched out
+# here, where the network is known to work; the build inside then finds them.
+PYTHONPATH="$T/pymeson" PYTHONDONTWRITEBYTECODE=1 python3 -m mesonbuild.mesonmain subprojects download \
+  --sourcedir "$T/src" || log "WARN: could not pre-fetch every subproject, the build fetches the rest"
+# DNS for whatever is still fetched inside: the host's resolv.conf, bound where
+# the rootfs's /etc/resolv.conf points (a symlink into /run on SteamOS, which
+# a plain bind onto /etc/resolv.conf cannot follow).
+RESOLV_SRC="$(readlink -f /etc/resolv.conf)"
+RESOLV=() MADE_RESOLV=0
+if [[ -L "$R/etc/resolv.conf" ]]; then
+  l="$(readlink "$R/etc/resolv.conf")"; [[ "$l" == /* ]] || l="/etc/$l"
+  d="$(realpath -m -s "$l")"
+  [[ "$d" == /run/* ]] && RESOLV+=(--tmpfs /run)
+  RESOLV+=(--dir "$(dirname "$d")" --ro-bind "$RESOLV_SRC" "$d")
+else
+  [[ -e "$R/etc/resolv.conf" ]] || MADE_RESOLV=1
+  RESOLV+=(--ro-bind "$RESOLV_SRC" /etc/resolv.conf)
+fi
+bwrap --bind "$R" / --dev /dev --proc /proc --tmpfs /tmp "${RESOLV[@]}" \
+  bash -c 'set -e; export PYTHONPATH=/t/mangohud/pymeson PYTHONDONTWRITEBYTECODE=1
     cd /t/mangohud/src
     rm -rf /t/mangohud/build
     python3 -m mesonbuild.mesonmain setup /t/mangohud/build --buildtype=release --prefix=/usr \
@@ -38,4 +56,6 @@ bwrap --bind "$R" / --dev /dev --proc /proc --tmpfs /tmp --ro-bind /etc/resolv.c
 mkdir -p "$BUILD"
 install -m0755 "$T/build/src/mangoapp" "$BUILD/mangoapp"
 rm -rf "$T"
+rmdir "$R/t" 2>/dev/null || true
+[[ "$MADE_RESOLV" == 0 ]] || rm -f "$R/etc/resolv.conf"
 log "OK: $BUILD/mangoapp"
