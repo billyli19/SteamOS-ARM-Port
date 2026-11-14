@@ -23,12 +23,16 @@ jobs:
         ls "$S/steamui" | sed -n '1,60p'
         echo "== index files"; ls -la "$S/steamui"/*.html 2>/dev/null || true
         for h in "$S/steamui"/index*.html; do echo "--- $h"; grep -o '<script[^>]*>' "$h" | sed -n '1,20p'; done
-        cd "$S/steamui"
-        for pat in sCPUVendor sCPUName GetSystemInfo; do
-          echo "=================== $pat"
-          grep -rl --include='*.js' -e "$pat" . | sed -n '1,20p'
-          for f in $(grep -rl --include='*.js' -e "$pat" . | sed -n '1,6p'); do
-            echo "--- $f ($(wc -c < "$f") bytes)"
-            grep -o ".\{0,260\}$pat.\{0,260\}" "$f" | sed -n '1,8p'
-          done
-        done
+        python3 - "$S/steamui" <<'PYEOF'
+        import sys, pathlib
+        root = pathlib.Path(sys.argv[1])
+        for pat in ("sCPUVendor", "sCPUName", "GetSystemInfo"):
+            print("===================", pat)
+            for f in sorted(root.rglob("*.js")):
+                s = f.read_text(errors="replace")
+                i = s.find(pat); n = 0
+                while i != -1 and n < 6:
+                    if n == 0: print("---", f.relative_to(root), len(s), "bytes, hits:", s.count(pat))
+                    print("   @%d: %s" % (i, s[max(0, i-280):i+280].replace("\n", " ")))
+                    n += 1; i = s.find(pat, i + 1)
+        PYEOF
