@@ -17,29 +17,18 @@ jobs:
       with:
         path: ${{ env.STEAMOS_WORK }}/steam-arm-seed
         key: steam-seed-20261104.6131433-steamdeck_publicbeta
-    - name: Where does the Steam client read the CPU vendor and name?
+    - name: Where does Steam's interface use the CPU vendor and name?
       run: |
         S="${STEAMOS_WORK}/steam-arm-seed"
-        echo "cache hit: ${{ steps.seed.outputs.cache-hit }}"
-        ls "$S" | sed -n '1,40p'
-        sudo apt-get install -y -qq binutils >/dev/null
-        for f in $(grep -rl -a -e 'ARM-64' "$S" --include='*.so' --include='steam' --include='*.js' 2>/dev/null | sed -n '1,12p'); do
-          echo "=================== $f"
-          file "$f" | cut -c1-200
-          strings -a "$f" > /tmp/s.txt
-          for pat in 'ARM-64' '/proc/cpuinfo' 'model name' 'vendor_id' 'CPU implementer' 'CPU part' 'Hardware' 'soc0' 'machine' 'GenuineIntel' 'CPUBrand' 'cpu_brand' 'sCPUName' 'sCPUVendor'; do
-            n=$(grep -c -- "$pat" /tmp/s.txt || true)
-            echo "--- '$pat': $n"
-            grep -n -m 6 -- "$pat" /tmp/s.txt | cut -c1-220 || true
-          done
-          echo "--- neighbours of ARM-64"
-          for l in $(grep -n -- 'ARM-64' /tmp/s.txt | cut -d: -f1 | sed -n '1,3p'); do
-            sed -n "$((l>12?l-12:1)),$((l+12))p" /tmp/s.txt | cut -c1-160
-            echo "   ..."
-          done
-          echo "--- neighbours of /proc/cpuinfo"
-          for l in $(grep -n -- '/proc/cpuinfo' /tmp/s.txt | cut -d: -f1 | sed -n '1,3p'); do
-            sed -n "$((l>10?l-10:1)),$((l+10))p" /tmp/s.txt | cut -c1-160
-            echo "   ..."
+        ls "$S/steamui" | sed -n '1,60p'
+        echo "== index files"; ls -la "$S/steamui"/*.html 2>/dev/null || true
+        for h in "$S/steamui"/index*.html; do echo "--- $h"; grep -o '<script[^>]*>' "$h" | sed -n '1,20p'; done
+        cd "$S/steamui"
+        for pat in sCPUVendor sCPUName GetSystemInfo; do
+          echo "=================== $pat"
+          grep -rl --include='*.js' -e "$pat" . | sed -n '1,20p'
+          for f in $(grep -rl --include='*.js' -e "$pat" . | sed -n '1,6p'); do
+            echo "--- $f ($(wc -c < "$f") bytes)"
+            grep -o ".\{0,260\}$pat.\{0,260\}" "$f" | sed -n '1,8p'
           done
         done
