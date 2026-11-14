@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+"""Settings > System > Hardware: show the Odin 3's CPU vendor and name.
+
+Steam's ARM build has no CPU detection: the vendor is the fixed text "ARM-64"
+and the name "Unknown" (tier0/cpu.cpp). The AYN Odin 3's chip is the Qualcomm
+Dragonwing Q8, so the two places in Steam's interface that print those values
+show that instead of the placeholders. A real value, should Steam ever report
+one, is left alone.
+
+  odin3-steamui-cpu-name <steamui dir>     patch (safe to repeat)
+  odin3-steamui-cpu-name --check <dir>     exit 0 only if the patch is in place
+"""
+import re
+import sys
+from pathlib import Path
+
+VENDOR = re.compile(r"value:([\w$]+)\.sCPUVendor\}")
+NAME = re.compile(r"value:([\w$]+)\.sCPUName\}")
+DONE_VENDOR = '"ARM-64"===', '.sCPUVendor?"Qualcomm":'
+DONE_NAME = '"Unknown"===', '.sCPUName?"Dragonwing Q8":'
+
+check = len(sys.argv) > 1 and sys.argv[1] == "--check"
+root = Path(sys.argv[2 if check else 1])
+if not root.is_dir():
+    sys.exit(1 if check else 0)
+
+patched = present = 0
+for p in sorted(root.glob("chunk*.js")) + sorted(root.glob("library.js")):
+    txt = p.read_text(errors="surrogateescape")
+    if "sCPUVendor" not in txt and "sCPUName" not in txt:
+        continue
+    if not check:
+        new, a = VENDOR.subn(r'value:"ARM-64"===\1.sCPUVendor?"Qualcomm":\1.sCPUVendor}', txt)
+        new, b = NAME.subn(r'value:"Unknown"===\1.sCPUName?"Dragonwing Q8":\1.sCPUName}', new)
+        if a or b:
+            tmp = p.with_name(p.name + ".tmp")
+            tmp.write_text(new, errors="surrogateescape")
+            tmp.replace(p)
+            patched += 1
+            txt = new
+    if all(s in txt for s in DONE_VENDOR) and all(s in txt for s in DONE_NAME):
+        present += 1
+print(f"cpu name: {patched} file(s) changed, in place in {present}", file=sys.stderr)
+sys.exit(0 if (present or not check) else 1)

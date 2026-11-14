@@ -181,6 +181,10 @@ fi
 if [[ -x /usr/lib/steamos/sm8550-patch-steamui ]]; then
   /usr/lib/steamos/sm8550-patch-steamui "${STEAMROOT}/steamui" >/dev/null 2>&1 || true
 fi
+# Odin 3: CPU vendor and name in Settings > System (kept across client updates).
+if [[ -f /usr/lib/steamos/odin3-steamui-cpu-name ]]; then
+  env -u LD_LIBRARY_PATH -u LD_PRELOAD python3 /usr/lib/steamos/odin3-steamui-cpu-name "${STEAMROOT}/steamui" >/dev/null 2>&1 || true
+fi
 # Frame tarball leaves linuxarm64/steamclient.so as 0 bytes. webhelper
 # dlmopens that path and Gamepad UI never creates the BPM window.
 if [[ -d "${STEAMROOT}/linuxarm64" && -d "${STEAMROOT}/steamrtarm64" ]]; then

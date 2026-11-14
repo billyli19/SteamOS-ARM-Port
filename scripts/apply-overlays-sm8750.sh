@@ -796,6 +796,13 @@ mkdir -p "$STEAM_HOME"
 if [[ -x "$R/usr/lib/steamos/sm8550-patch-steamui" && -d "$STEAM_HOME/steamui" ]]; then
   "$R/usr/lib/steamos/sm8550-patch-steamui" "$STEAM_HOME/steamui" || true
 fi
+# CPU vendor and name in Settings > System > Hardware (Steam's ARM build shows
+# "ARM-64" and "Unknown"). Patched here and again at every Steam start
+# (RUNSTEAM.sh); the build stops if this Steam client's code no longer matches.
+install_file "$SM8750_OVL/usr/lib/steamos/odin3-steamui-cpu-name" "$R/usr/lib/steamos/odin3-steamui-cpu-name" 0755
+python3 "$R/usr/lib/steamos/odin3-steamui-cpu-name" "$STEAM_HOME/steamui" 2>&1 | tee -a "$LOG"
+python3 "$R/usr/lib/steamos/odin3-steamui-cpu-name" --check "$STEAM_HOME/steamui" \
+  || die "the CPU name patch did not apply to this Steam client's interface"
 touch "$STEAM_HOME/.install-complete"
 
 # Seed Odin 3 default controller mapping and UI scale factor into config.vdf

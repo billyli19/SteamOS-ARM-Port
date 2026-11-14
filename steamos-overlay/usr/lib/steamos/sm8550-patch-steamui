@@ -56,12 +56,6 @@ SETUP_ERROR = re.compile(
 )
 # Setup's first page is meant for a device waiting for a controller to be
 # plugged in. It advances as soon as input exists, and a handheld always has it.
-# Settings > System > Hardware. Steam's ARM build has no CPU detection: the
-# vendor is the fixed text "ARM-64" and the name "Unknown" (tier0/cpu.cpp).
-# The AYN Odin 3's chip is the Qualcomm Dragonwing Q8; show that instead of
-# the two placeholders (any real value Steam may report later is kept).
-CPU_VENDOR = re.compile(r"value:([\w$]+)\.sCPUVendor\}")
-CPU_NAME = re.compile(r"value:([\w$]+)\.sCPUName\}")
 SETUP_INPUT = re.compile(r"(\w+=\(0,[\w.$]+\)\([\w.$]+\.NumKeyboards\)>0\|\|\w+\.length>0)(,\w+=\w+&&\w+;let)")
 
 # Setup's second stage pairs controllers and asks about TV underscan and audio
@@ -107,8 +101,6 @@ for p in list(root.glob("chunk*.js")) + list(root.glob("library.js")):
         (SETUP_RESTART, r"\g<1>!1\2", "setup restart"),
         (SETUP_ERROR, r"\1\2", "setup error flash"),
         (SETUP_INPUT, r"\1||!0\2", "setup first page"),
-        (CPU_VENDOR, r'value:"ARM-64"===\1.sCPUVendor?"Qualcomm":\1.sCPUVendor}', "CPU vendor"),
-        (CPU_NAME, r'value:"Unknown"===\1.sCPUName?"Dragonwing Q8":\1.sCPUName}', "CPU name"),
         (SETUP_STAGE2, r"async(\1,\2)=>{await \3.SetOOBEComplete(),await \3.SetOOBEStage2Complete(),\4(\1,\2)}", "setup second stage"),
     ):
         txt, n = rx.subn(new, txt, count=1)

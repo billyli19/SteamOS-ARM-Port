@@ -534,3 +534,4 @@ jobs:
 # run 12: Zaviya branding removed (boot logo, videos, wallpaper, names); control panel name fixed
 # run 13: installer fully renamed, CPU vendor/name in Settings, build helpers removed, fuller audit
 # run 14: Mesa flavor turnip-v39 (upstream Mesa main 2026-11-07 + Gen8 stack), kernel reused
+# run 15: CPU name patcher actually installed and verified at build time (run 13 did not ship it)
