@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Find and install Zaviya updates, for Steam's own update button.
+"""Find and install SteamOS updates, for Steam's own update button.
 
   update-agent check   newest release for this device newer than the one
                        installed, as JSON ({} when up to date)
@@ -30,7 +30,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-REPO = "billyli19/SteamOS-ARM-Port"   # this image's own repository, never upstream Zaviya
+REPO = "billyli19/SteamOS-ARM-Port"   # this image's own repository, never upstream
 KONKR_UPDATE = "/usr/share/konkr-update/konkr-update.py"
 RUN = Path("/run/steamos-arm-update")
 CACHE = Path("/home/.steamos-arm-update")

@@ -12,8 +12,8 @@ Hidden options (for building and testing without a device):
                             done failed unsupported)
   --snapshot-size WxH       window size for --snapshot (default 1920x1080)
 Environment:
-  ZAVIYA_INSTALLER_FAKE=1   fake backend (see installer_backend.py)
-  ZAVIYA_INSTALLER_SCRIPT   comma separated events fed to the pad dispatcher at
+  STEAMOS_INSTALLER_FAKE=1   fake backend (see installer_backend.py)
+  STEAMOS_INSTALLER_SCRIPT   comma separated events fed to the pad dispatcher at
                             300 ms intervals: up down left right l r a_down
                             a_up b tap hold wait:SECONDS
 """
@@ -30,7 +30,7 @@ import traceback
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-APP_ID = "org.zaviya.installer"
+APP_ID = "org.steamos.installer"
 GOLD = "#C9A24D"
 HOLD_SECONDS = 2.0
 PAGE_GUARD = 0.2          # seconds after a page change in which A is ignored
@@ -61,7 +61,7 @@ def _split_args(argv):
 
 ARGV, SNAPSHOT, SNAPSHOT_SIZE = _split_args(sys.argv)
 if SNAPSHOT:
-    os.environ["ZAVIYA_INSTALLER_FAKE"] = "1"      # a snapshot never touches a device
+    os.environ["STEAMOS_INSTALLER_FAKE"] = "1"      # a snapshot never touches a device
 
 
 # ------------------------------------------------------------------ fonts ----
@@ -97,7 +97,7 @@ from installer_pad import Pad  # noqa: E402
 
 # ----------------------------------------------------------------- helpers ----
 def detect_tablet() -> bool:
-    if os.environ.get("ZAVIYA_INSTALLER_FAKE_TABLET") == "1":
+    if os.environ.get("STEAMOS_INSTALLER_FAKE_TABLET") == "1":
         return True
     try:
         with open("/sys/firmware/devicetree/base/compatible", "rb") as fh:
@@ -121,7 +121,7 @@ def safe(fn):
 
 class Clamp(Gtk.Widget):
     """Holds one child at no more than max_width, centred."""
-    __gtype_name__ = "ZaviyaClamp"
+    __gtype_name__ = "SteamOSClamp"
 
     def __init__(self, child, max_width=1200):
         super().__init__()
@@ -159,7 +159,7 @@ class Clamp(Gtk.Widget):
 
 class Sized(Gtk.Widget):
     """Gives its child exactly w x h (a Gtk.Picture would ask for its own size)."""
-    __gtype_name__ = "ZaviyaSized"
+    __gtype_name__ = "SteamOSSized"
 
     def __init__(self, child, w, h, crop=(0.0, 0.0)):
         super().__init__()
@@ -191,7 +191,7 @@ class Sized(Gtk.Widget):
 class HoldButton(Gtk.Widget):
     """A button that fires after being held HOLD_SECONDS, with a gold fill that
     grows across it. Pointer, touch, keyboard and pad all end up in begin()/end()."""
-    __gtype_name__ = "ZaviyaHoldButton"
+    __gtype_name__ = "SteamOSHoldButton"
 
     def __init__(self, text, on_complete):
         super().__init__()
@@ -497,7 +497,7 @@ class InstallerApp:
     def __init__(self, app):
         self.app = app
         self.snapshot = SNAPSHOT
-        self.script_mode = bool(os.environ.get("ZAVIYA_INSTALLER_SCRIPT"))
+        self.script_mode = bool(os.environ.get("STEAMOS_INSTALLER_SCRIPT"))
         self.inst = backend.Installer()
         self.tablet = detect_tablet()
         self.probe = None
@@ -559,7 +559,7 @@ class InstallerApp:
         else:
             self.begin_startup()
             if self.script_mode:
-                self.start_script(os.environ["ZAVIYA_INSTALLER_SCRIPT"])
+                self.start_script(os.environ["STEAMOS_INSTALLER_SCRIPT"])
 
     # ------------------------------------------------------------- wording ----
     @property
@@ -568,7 +568,7 @@ class InstallerApp:
 
     # -------------------------------------------------------------- chrome ----
     def build_chrome(self):
-        self.logo = Gtk.Picture.new_for_filename(os.path.join(HERE, "zaviya-logo-white.svg"))
+        self.logo = Gtk.Picture.new_for_filename(os.path.join(HERE, "steamos-logo-white.svg"))
         self.logo.set_can_shrink(True)
         self.logo.set_content_fit(Gtk.ContentFit.CONTAIN)
         self.logo_box = Sized(self.logo, 100, 100, crop=(0.25, 0.12))
@@ -625,7 +625,7 @@ class InstallerApp:
         self._sizers.append(size)
 
     def tagline(self, height):
-        pic = Gtk.Picture.new_for_filename(os.path.join(HERE, "zaviya-logo-tagline-white.svg"))
+        pic = Gtk.Picture.new_for_filename(os.path.join(HERE, "steamos-logo-tagline-white.svg"))
         pic.set_can_shrink(True)
         pic.set_content_fit(Gtk.ContentFit.CONTAIN)
 
@@ -695,9 +695,9 @@ class InstallerApp:
         self.scale.add_controller(sk)
 
         self.android_val = label("64 GB", "big", wrap=False)
-        self.zaviya_val = label("120 GB", "big", wrap=False)
+        self.steamos_val = label("120 GB", "big", wrap=False)
         c1 = vbox(label("ANDROID", "cap", wrap=False), self.android_val, label("space kept for Android", "cap"))
-        c2 = vbox(label("STEAMOS", "cap", wrap=False), self.zaviya_val, label("space for games and settings", "cap"))
+        c2 = vbox(label("STEAMOS", "cap", wrap=False), self.steamos_val, label("space for games and settings", "cap"))
         c1.set_hexpand(True)
         c2.set_hexpand(True)
         readout = hbox(c1, c2)
@@ -716,7 +716,7 @@ class InstallerApp:
         self.android_gib = v
         self.android_val.set_text(f"{v} GB")
         if self.probe:
-            self.zaviya_val.set_text(f"{backend.zaviya_home_gib(self.probe, v)} GB")
+            self.steamos_val.set_text(f"{backend.steamos_home_gib(self.probe, v)} GB")
 
     def fill_size(self):
         p = self.probe
@@ -811,7 +811,7 @@ class InstallerApp:
         else:
             gib = self.android_gib
             rows = [("Android", f"{gib} GB kept. Its apps and data are erased."),
-                    ("SteamOS", f"{backend.zaviya_home_gib(p, gib)} GB for games and settings, "
+                    ("SteamOS", f"{backend.steamos_home_gib(p, gib)} GB for games and settings, "
                                f"plus {p.boot_gib + p.root_gib} GB of system partitions.")]
             self.hold_text = "Erase Android data and install"
         rows += [("Copied", self.mode_title()), (self.media, "Not changed.")]
@@ -977,7 +977,7 @@ class InstallerApp:
         self.logo_box.set_visible(page.small_logo)
         self.hint.set_markup(self.hint_markup(page.hint))
         self._guard_until = time.monotonic() + PAGE_GUARD
-        if self.script_mode or os.environ.get("ZAVIYA_INSTALLER_TRACE"):
+        if self.script_mode or os.environ.get("STEAMOS_INSTALLER_TRACE"):
             print(f"[page] {name}", flush=True)
         GLib.idle_add(self.focus_page, name)
 

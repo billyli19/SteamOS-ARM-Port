@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Install the Zaviya running from the microSD card to internal UFS.
+# Install the SteamOS running from the microSD card to internal UFS.
 # KONKR Pocket FIT / AYANEO Pocket S2 (SM8650), SM8550 handhelds such as
 # the AYN Odin 2 / Odin 2 Mini / Odin 2 Portal, and the AYN Odin 3 / KONKR
 # Pocket FIT Elite (SM8750), with OpenABL.
@@ -11,7 +11,7 @@
 # erased. The old partition table is saved to the SD card's /boot/ufs-backup
 # first, and `ufs-partition.py restore` puts it back.
 #
-# Usage (from Zaviya on the SD card, as root):
+# Usage (from SteamOS on the SD card, as root):
 #   install-to-internal.sh                  interactive
 #   install-to-internal.sh --android-gb 32
 #   install-to-internal.sh --dry-run        show the plan, write nothing
@@ -19,7 +19,7 @@
 #
 # Options:
 #   --android-gb N     Android userdata size (GiB)
-#   --storage-gb N     Zaviya system partition (GiB, default 20)
+#   --storage-gb N     SteamOS system partition (GiB, default 20)
 #   --home all|essentials|none
 #                      what to bring from the SD's /home (default all);
 #                      essentials leaves installed games behind
@@ -50,18 +50,18 @@ usage() { sed -n '3,25p' "$0" | sed 's/^# \{0,1\}//'; }
 
 # A sleep halfway through leaves the internal storage partitioned but empty:
 # hold a sleep inhibitor for the whole run where logind offers one.
-if [[ $EUID -eq 0 && -z "${ZAVIYA_INSTALL_INHIBITED:-}" ]] \
+if [[ $EUID -eq 0 && -z "${STEAMOS_INSTALL_INHIBITED:-}" ]] \
     && systemd-inhibit --what=sleep:idle --mode=block true 2>/dev/null; then
-  export ZAVIYA_INSTALL_INHIBITED=1
-  exec systemd-inhibit --what=sleep:idle --mode=block --who="Zaviya installer" \
+  export STEAMOS_INSTALL_INHIBITED=1
+  exec systemd-inhibit --what=sleep:idle --mode=block --who="SteamOS installer" \
     --why="Installing to internal storage" "$0" "$@"
 fi
 
 # Refuse to start on a low battery that isn't charging. POWER_SUPPLY_DIR and
-# ZAVIYA_SKIP_BATTERY_CHECK are for tests and for devices that report nothing.
+# STEAMOS_SKIP_BATTERY_CHECK are for tests and for devices that report nothing.
 battery_check() {
   local b cap st
-  [[ -n "${ZAVIYA_SKIP_BATTERY_CHECK:-}" ]] && return 0
+  [[ -n "${STEAMOS_SKIP_BATTERY_CHECK:-}" ]] && return 0
   for b in "${POWER_SUPPLY_DIR:-/sys/class/power_supply}"/*; do
     [[ "$(cat "$b/type" 2>/dev/null)" == Battery ]] || continue
     cap="$(cat "$b/capacity" 2>/dev/null)"; st="$(cat "$b/status" 2>/dev/null)"
@@ -104,7 +104,7 @@ compat="$(tr '\0' '\n' </sys/firmware/devicetree/base/compatible)"
 grep -qx 'lenovo,tb321fu' <<<"$compat" && TABLET=tb321fu
 grep -qx 'lenovo,elden' <<<"$compat" && TABLET=elden
 grep -qx 'qcom,sm8250' <<<"$compat" \
-  && die "internal install isn't supported on Snapdragon 865 devices yet, keep running Zaviya from the microSD card"
+  && die "internal install isn't supported on Snapdragon 865 devices yet, keep running SteamOS from the microSD card"
 [[ -n "$TABLET" ]] || grep -qxE 'qcom,sm8650|qcom,sm8550|qcom,sm8750' <<<"$compat" \
   || die "this installer is for SM8650, SM8550 and SM8750 devices (KONKR Pocket FIT / Pocket FIT Elite, AYANEO Pocket S2, AYN Odin 2 / Odin 2 Mini / Odin 2 Portal / Odin 3) and the Lenovo Legion Y700 Gen 3 / Gen 4"
 MODEL="$(tr -d '\0' </sys/firmware/devicetree/base/model)"
@@ -151,11 +151,11 @@ case "$P_MODE" in
   fresh)
     (( RESUME )) && die "--resume needs an existing install; this disk has none" ;;
   installed)
-    (( RESUME )) || die "Zaviya partitions already exist. Use Zaviya Update to preserve games and saves. --resume reformats system and HOME, erasing internal user data. For a fresh install, remove them first in the ABL menu (UNINSTALL CFW)." ;;
+    (( RESUME )) || die "SteamOS partitions already exist. Use SteamOS Update to preserve games and saves. --resume reformats system and HOME, erasing internal user data. For a fresh install, remove them first in the ABL menu (UNINSTALL CFW)." ;;
   occupied)
     die "unknown partitions after userdata (${P_OCCUPIED}). Remove them with the ABL menu (UNINSTALL CFW) first; nothing was changed." ;;
   toosmall)
-    die "not enough room after userdata for Zaviya" ;;
+    die "not enough room after userdata for SteamOS" ;;
   *) die "unexpected disk state ${P_MODE}" ;;
 esac
 [[ -z "$EXPECT" || "$EXPECT" == "$P_TABLE_FINGERPRINT" ]] \
@@ -214,7 +214,7 @@ if (( ! RESUME )); then
     (( FORCE )) && die "--android-gb is required with --force"
     echo
     echo "Android keeps its system; its user data (apps, photos, accounts) is erased."
-    echo "Android userdata can be ${P_ANDROID_MIN_GIB}..${P_ANDROID_MAX_GIB} GiB; Zaviya gets the rest."
+    echo "Android userdata can be ${P_ANDROID_MIN_GIB}..${P_ANDROID_MAX_GIB} GiB; SteamOS gets the rest."
     read -r -p "Android size in GiB: " ANDROID_GB
   fi
   [[ "$ANDROID_GB" =~ ^[0-9]+$ ]] || die "Android size must be a whole number of GiB"
@@ -358,13 +358,13 @@ entries = re.findall(r'menuentry "[^"]*" \{.*?\n\}', text, re.S)
 mine = [e for e in entries if "/dtb/" + dtb in e]
 if not mine:
     sys.exit(1)
-entry = re.sub(r'menuentry "[^"]*"', 'menuentry "Zaviya"', mine[0], count=1)
+entry = re.sub(r'menuentry "[^"]*"', 'menuentry "SteamOS"', mine[0], count=1)
 open(dst, "w").write("set timeout=0\nset default=0\nset gfxpayload=keep\n\n" + entry + "\n")
 PY
       # This ESP's own marker (the USB drive's stays on the drive), in both
       # GRUB stages.
       local mark="steamos-arm-boot-$(head -c 6 /dev/urandom | od -An -tx1 | tr -d ' \n')"
-      echo "Zaviya boot partition (GRUB looks for this file)" >"$WORK/boot/$mark"
+      echo "SteamOS boot partition (GRUB looks for this file)" >"$WORK/boot/$mark"
       sed -i -E "s|--file /[^ ]+ --set=root|--file /$mark --set=root|" \
         "$WORK/boot/EFI/BOOT/qcomramp.cfg" "$WORK/boot/EFI/BOOT/grub.cfg"
       grep -q -- "--file /$mark --set=root" "$WORK/boot/EFI/BOOT/qcomramp.cfg" \
@@ -412,7 +412,7 @@ mount -o remount,bind,ro "$WORK/src"
 log "copying the system (a few minutes)"
 rsync -aAXH --numeric-ids --info=progress2 "$WORK/src/" "$WORK/root/"
 
-FSTAB="# Zaviya on internal UFS (partitions by GPT name)
+FSTAB="# SteamOS on internal UFS (partitions by GPT name)
 PARTLABEL=STORAGE  /      ext4  defaults,noatime                  0 1
 PARTLABEL=$BOOT_LABEL  /boot  vfat  defaults,umask=0077,nofail        0 2
 PARTLABEL=HOME     /home  ext4  defaults,noatime,commit=30        0 2
@@ -479,9 +479,9 @@ cmp -s <(printf '%s' "$FSTAB") "$WORK/root/etc/fstab" || die "fstab not written"
 
 cleanup
 echo
-log "done. Zaviya is on internal storage."
+log "done. SteamOS is on internal storage."
 if [[ -n "$TABLET" ]]; then
-  echo "  - Power off and unplug the USB drive, then power on: it starts Zaviya from"
+  echo "  - Power off and unplug the USB drive, then power on: it starts SteamOS from"
   echo "    internal storage."
   echo "  - Android's boot image is saved in /home/.ufs-backup and in $BACKUP_DIR on the"
   echo "    SD card (stock-boot_*.img). To go back"

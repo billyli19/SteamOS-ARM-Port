@@ -4,13 +4,13 @@
 
 ## What these tools do
 
-The scripts in **external-and-mods/ufs-install** repartition the **internal UFS** storage on Qualcomm SM8650 handhelds (KONKR Pocket FIT, AYANEO Pocket S2), SM8550 handhelds (AYN Odin 2, Odin 2 Mini, Odin 2 Portal), and SM8750 handhelds (AYN Odin 3, KONKR Pocket FIT Elite) to install **Zaviya** alongside **Android**, using **OpenABL** with a dual-boot layout of **three Linux partitions** (boot + `STORAGE` + `HOME`).
+The scripts in **external-and-mods/ufs-install** repartition the **internal UFS** storage on Qualcomm SM8650 handhelds (KONKR Pocket FIT, AYANEO Pocket S2), SM8550 handhelds (AYN Odin 2, Odin 2 Mini, Odin 2 Portal), and SM8750 handhelds (AYN Odin 3, KONKR Pocket FIT Elite) to install **SteamOS** alongside **Android**, using **OpenABL** with a dual-boot layout of **three Linux partitions** (boot + `STORAGE` + `HOME`).
 
 This is **not** a supported manufacturer procedure. It is an **experimental community tool**.
 
 ## Data loss
 
-Running `install-to-internal.sh` (unless using `--resume` / `--deploy-only` on **existing** Zaviya 3-partition layouts only):
+Running `install-to-internal.sh` (unless using `--resume` / `--deploy-only` on **existing** SteamOS 3-partition layouts only):
 
 - **Wipes Android `userdata`** — all apps, photos, game saves, accounts, and settings on internal Android storage are **permanently erased** (equivalent to repartition + factory reset).
 - **May destroy other data** on internal UFS if the partition table is modified incorrectly.
@@ -29,7 +29,7 @@ After installation or a failed attempt:
 ## Requirements (your responsibility)
 
 - **OpenABL** already installed and working.
-- Boot **Zaviya from the microSD card** (not from UFS) when running the installer.
+- Boot **SteamOS from the microSD card** (not from UFS) when running the installer.
 - A **`/boot/KERNEL`** from this project's SD image whose initramfs understands `root=PARTLABEL=` (the installer checks this).
 - Correct **ABL device profile** (“Set the Device” → your exact model).
 
@@ -59,7 +59,7 @@ If you do not agree, **do not run the installer**.
 
 ## Other UFS layouts
 
-These scripts target the **Zaviya three-partition layout** (boot + `STORAGE` + `HOME`). They will **refuse** an old two-partition boot + `STORAGE` install. Use ABL **UNINSTALL CFW** (and remove a leftover `HOME` if needed) before a fresh install.
+These scripts target the **SteamOS three-partition layout** (boot + `STORAGE` + `HOME`). They will **refuse** an old two-partition boot + `STORAGE` install. Use ABL **UNINSTALL CFW** (and remove a leftover `HOME` if needed) before a fresh install.
 
 ## License
 

@@ -1,5 +1,5 @@
 """Tests for the installer's non-window half (installer_backend, installer_pad,
-zaviya-install-start, seed-installer-shortcut). Run:
+steamos-install-start, seed-installer-shortcut). Run:
     python3 -m unittest tests.test_installer_backend
 """
 import importlib.util
@@ -19,7 +19,7 @@ sys.path.insert(0, str(UFS))
 import installer_backend as ib  # noqa: E402
 import installer_pad as ip  # noqa: E402
 
-ICON = "/usr/share/zaviya-install/art/installer-icon.png"
+ICON = "/usr/share/steamos-install/art/installer-icon.png"
 VDF = ROOT / "external-and-mods" / "NO_Steam" / "no_steam_games" / "shortcuts_vdf.py"
 FP = "0123456789abcdef"
 
@@ -48,7 +48,7 @@ def log_upto(stage, pct=None, home="copying /home (games included)", reinstall=F
             ("home", G + home + "\n"),
             ("kernel", G + "installing KERNEL (root=PARTLABEL=STORAGE)\n"),
             ("check", G + "checking the result\n"),
-            ("done", "\n" + G + "done. Zaviya is on internal storage.\n")]
+            ("done", "\n" + G + "done. SteamOS is on internal storage.\n")]
     out = "".join(lines)
     for key, line in seq:
         out += line
@@ -97,9 +97,9 @@ class ParseProbe(unittest.TestCase):
 
     def test_home(self):
         p = ib.Probe.from_keys(GOOD)
-        self.assertEqual(ib.zaviya_home_gib(p, 64), 240 - 64 - 2 - 20)
-        self.assertGreaterEqual(ib.zaviya_home_gib(p, p.max_gib), 16)
-        self.assertEqual(ib.zaviya_home_gib(p, 10 ** 6), 0)
+        self.assertEqual(ib.steamos_home_gib(p, 64), 240 - 64 - 2 - 20)
+        self.assertGreaterEqual(ib.steamos_home_gib(p, p.max_gib), 16)
+        self.assertEqual(ib.steamos_home_gib(p, 10 ** 6), 0)
 
     def test_home_matches_partition_plan(self):
         spec = importlib.util.spec_from_file_location("up_t", UFS / "ufs-partition.py")
@@ -115,7 +115,7 @@ class ParseProbe(unittest.TestCase):
                                 "AVAILABLE_GIB": f"{avail:.1f}"})
         for a in (16, 64, mx):
             real = up.plan(t, ud, a, 20)["home_gib"]
-            mine = ib.zaviya_home_gib(p, a)
+            mine = ib.steamos_home_gib(p, a)
             self.assertLessEqual(mine, real)
             self.assertLess(real - mine, 1.1)
 
@@ -231,7 +231,7 @@ class Progress(unittest.TestCase):
 class FakeMode(unittest.TestCase):
     def setUp(self):
         self.saved = dict(os.environ)
-        os.environ["ZAVIYA_INSTALLER_FAKE"] = "1"
+        os.environ["STEAMOS_INSTALLER_FAKE"] = "1"
 
     def tearDown(self):
         os.environ.clear()
@@ -242,8 +242,8 @@ class FakeMode(unittest.TestCase):
         p = ib.Installer().probe()
         self.assertIsNone(p.error)
         self.assertFalse(p.existing_install or p.tablet or p.unsupported)
-        os.environ.update(ZAVIYA_INSTALLER_FAKE_EXISTING="1", ZAVIYA_INSTALLER_FAKE_TABLET="1",
-                          ZAVIYA_INSTALLER_FAKE_UNSUPPORTED="1")
+        os.environ.update(STEAMOS_INSTALLER_FAKE_EXISTING="1", STEAMOS_INSTALLER_FAKE_TABLET="1",
+                          STEAMOS_INSTALLER_FAKE_UNSUPPORTED="1")
         p = ib.Installer().probe()
         self.assertTrue(p.existing_install and p.tablet and p.unsupported)
 
@@ -260,7 +260,7 @@ class FakeMode(unittest.TestCase):
         inst._impl.t0 -= 30
         st, prog, _ = inst.status()
         self.assertEqual((st, prog.done), ("done", True))
-        os.environ["ZAVIYA_INSTALLER_FAKE_FAIL"] = "1"
+        os.environ["STEAMOS_INSTALLER_FAKE_FAIL"] = "1"
         inst = ib.Installer()
         inst.start(64, "none", FP, True)
         inst._impl.t0 -= 12
@@ -318,7 +318,7 @@ class PadLogicTests(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which("bash"), "bash needed")
 class StartHelper(unittest.TestCase):
-    S = str(UFS / "zaviya-install-start")
+    S = str(UFS / "steamos-install-start")
 
     def run_(self, *args):
         return subprocess.run(["bash", self.S, "--check", *args], capture_output=True, text=True)
@@ -326,9 +326,9 @@ class StartHelper(unittest.TestCase):
     def test_good(self):
         r = self.run_("--expect", FP, "--home", "essentials", "--android-gb", "64")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("--unit=zaviya-install", r.stdout)
+        self.assertIn("--unit=steamos-install", r.stdout)
         self.assertIn("--remain-after-exit", r.stdout)
-        self.assertIn("StandardOutput=append:/run/zaviya-install.log", r.stdout)
+        self.assertIn("StandardOutput=append:/run/steamos-install.log", r.stdout)
         self.assertIn(str(UFS / "install-to-internal.sh"), r.stdout)
         self.assertIn("--force --expect " + FP + " --home essentials --android-gb 64", r.stdout)
         r = self.run_("--expect", FP, "--home", "all", "--resume")
@@ -389,7 +389,7 @@ class Seeder(unittest.TestCase):
 
     def entry(self):
         t, _ = self.vdf.parse_binary_vdf(self.sc.read_bytes())
-        return [v for k, v in t["shortcuts"].items() if k != "tags" and v["AppName"] == "Zaviya Installer"][0]
+        return [v for k, v in t["shortcuts"].items() if k != "tags" and v["AppName"] == "SteamOS Installer"][0]
 
     def test_art_files(self):
         from PIL import Image
@@ -405,15 +405,15 @@ class Seeder(unittest.TestCase):
 
     def test_upgrade_adds_icon_and_art(self):
         # an entry from an older image: no icon, only the two capsules
-        exe = str(Path("/usr/bin/zaviya-installer").resolve())
-        self.vdf.add_shortcut(self.sc, "Zaviya Installer", exe)
+        exe = str(Path("/usr/bin/steamos-installer").resolve())
+        self.vdf.add_shortcut(self.sc, "SteamOS Installer", exe)
         self.assertEqual(self.entry()["icon"], "")
-        app_id = self.vdf.compute_app_id(exe, "Zaviya Installer")
+        app_id = self.vdf.compute_app_id(exe, "SteamOS Installer")
         grid = self.cfg / "grid"
         grid.mkdir()
         (grid / f"{app_id}p.png").write_bytes(b"old")
         self.assertEqual(self.seed("yes").stdout, "")
-        self.assertEqual(self.names(), {"0": "Zaviya Installer"})
+        self.assertEqual(self.names(), {"0": "SteamOS Installer"})
         self.assertEqual(self.entry()["icon"], ICON)
         self.assertNotEqual((grid / f"{app_id}p.png").read_bytes(), b"old")
         self.assertTrue((grid / f"{app_id}_hero.png").is_file())
@@ -431,8 +431,8 @@ class Seeder(unittest.TestCase):
         self.other()
         r = self.seed("yes")
         self.assertEqual((r.returncode, r.stdout), (0, ""))
-        self.assertEqual(self.names(), {"0": "Other A", "1": "Other B", "2": "Zaviya Installer"})
-        app_id = self.vdf.compute_app_id(str(Path("/usr/bin/zaviya-installer").resolve()), "Zaviya Installer")
+        self.assertEqual(self.names(), {"0": "Other A", "1": "Other B", "2": "SteamOS Installer"})
+        app_id = self.vdf.compute_app_id(str(Path("/usr/bin/steamos-installer").resolve()), "SteamOS Installer")
         grid = self.cfg / "grid"
         self.assertTrue((grid / f"{app_id}p.png").is_file())
         self.assertTrue((grid / f"{app_id}.png").is_file())

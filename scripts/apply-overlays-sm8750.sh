@@ -601,7 +601,7 @@ fi
 echo "${DECKY_SHA256}  ${DECKY_LOADER}" | sha256sum -c --status \
   || die "Decky loader ${DECKY_VERSION} sha256 mismatch"
 # Beta 2 only had the wants link, pointing at a unit that was never
-# installed: no Decky, so no Zaviya Control either.
+# installed: no Decky, so no control plugin either.
 mkdir -p "$HOME_DST/homebrew/settings" "$HOME_DST/homebrew/data" "$HOME_DST/homebrew/logs"
 install -m0755 "$DECKY_LOADER" "$HOME_DST/homebrew/services/PluginLoader"
 # Same binary in /usr: decky-plugin-fixes uses it to repair installs whose
@@ -909,6 +909,11 @@ log "== library check"
 LIBCHECK_OPTS=(--no-gear)
 [[ -f "$R/usr/lib/qt6/plugins/plasma/kcms/systemsettings/kcm_bluetooth.so" ]] || LIBCHECK_OPTS+=(--no-extras)
 "${SCRIPT_DIR}/check-rootfs-libs.sh" "$R" "${LIBCHECK_OPTS[@]}" | tee -a "$LOG"
+
+# Build helpers that served their purpose (the KDE builds), and box64's menu
+# entry: Valve's system has neither.
+rm -rf "$R/usr/share/ECM"
+rm -f "$R/usr/local/share/applications/box64-configurator.desktop" "$R/usr/share/applications/box64-configurator.desktop"
 
 # Last: what this image installed, and which release it is (see apply-overlays.sh).
 python3 "$ROOT/external-and-mods/konkr-update/konkr-update.py" record-inventory --root "$R" \

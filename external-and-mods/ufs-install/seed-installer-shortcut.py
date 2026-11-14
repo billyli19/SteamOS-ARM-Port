@@ -21,8 +21,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 NAME = "SteamOS Installer"
-EXE = "/usr/bin/zaviya-installer"
-ICON = "/usr/share/zaviya-install/art/installer-icon.png"
+EXE = "/usr/bin/steamos-installer"
+ICON = "/usr/share/steamos-install/art/installer-icon.png"
 DEFAULT_VDF = str(HERE / "shortcuts_vdf.py")
 
 

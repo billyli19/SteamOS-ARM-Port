@@ -41,13 +41,13 @@ if [[ -d "$R/var/lib/overlays/etc/upper" ]]; then
     "$R/var/lib/overlays/etc/upper/xdg/menus/applications-merged/arm-manager.menu"
 fi
 
-# ── Zaviya Installer (ARM-Manager, no desktop icon) ─────────────────────────
-log "Zaviya Installer"
+# ── SteamOS Installer (ARM-Manager, no desktop icon) ─────────────────────────
+log "SteamOS Installer"
 # A rootfs updated from an older image still has the old names.
 rm -rf "$R/usr/share/easy-ufs-install"
 rm -f "$bin/easy-ufs-installer" "$bin"/install-*-to-internal* \
   "$apps/easy-ufs-installer.desktop" "$icons/scalable/apps/easy-ufs-installer.svg"
-share_ufs="$R/usr/share/zaviya-install"
+share_ufs="$R/usr/share/steamos-install"
 rm -rf "$share_ufs"
 mkdir -p "$share_ufs"
 cp -a "${MOD}/ufs-install/." "$share_ufs/"
@@ -55,44 +55,44 @@ cp -a "${MOD}/ufs-install/." "$share_ufs/"
 cp -a "${MOD}/NO_Steam/no_steam_games/shortcuts_vdf.py" "$share_ufs/"
 # The app reads these as the desktop user, whatever modes the checkout has.
 chmod -R a+rX "$share_ufs"
-chmod 0755 "$share_ufs/"*.sh "$share_ufs/"*.py "$share_ufs/zaviya-install-start" 2>/dev/null || true
-cat >"$bin/zaviya-installer" <<'EOF'
+chmod 0755 "$share_ufs/"*.sh "$share_ufs/"*.py "$share_ufs/steamos-install-start" 2>/dev/null || true
+cat >"$bin/steamos-installer" <<'EOF'
 #!/bin/bash
 # Steam's libraries break the system GTK and python; the window runs without them.
 unset LD_LIBRARY_PATH LD_PRELOAD
 # Under gamescope there is no Wayland socket the window can use; go through X.
 [[ -n "${GAMESCOPE_WAYLAND_DISPLAY:-}" ]] && export GDK_BACKEND=x11
-export ZAVIYA_INSTALL_ROOT=/usr/share/zaviya-install
-exec python3 "${ZAVIYA_INSTALL_ROOT}/zaviya-installer.py" "$@"
+export STEAMOS_INSTALL_ROOT=/usr/share/steamos-install
+exec python3 "${STEAMOS_INSTALL_ROOT}/steamos-installer.py" "$@"
 EOF
-chmod 0755 "$bin/zaviya-installer"
+chmod 0755 "$bin/steamos-installer"
 for s in install-to-internal ufs-bootimg ufs-diagnose ufs-fix-internal-boot ufs-probe-sizes; do
   if [[ -x "${MOD}/ufs-install/${s}.sh" ]]; then
     cat >"$bin/${s}.sh" <<EOF
 #!/bin/bash
-exec /usr/share/zaviya-install/${s}.sh "\$@"
+exec /usr/share/steamos-install/${s}.sh "\$@"
 EOF
     chmod 0755 "$bin/${s}.sh" || true
     ln -sfn "${s}.sh" "$bin/${s}" || true
   fi
 done
-# The app runs the installer and its probe through pkexec. Zaviya has no
+# The app runs the installer and its probe through pkexec. SteamOS has no
 # user password, so the person at the device may run these two without one.
 install -Dm0644 "${MOD}/ufs-install/polkit/org.steamos-arm.easy-ufs-install.policy" \
   "$R/usr/share/polkit-1/actions/org.steamos-arm.easy-ufs-install.policy"
 # restore / inspect: `sudo ufs-partition.py restore --backup …` (printed by the installer)
 for s in ufs-partition ufs-bootimg; do
-  ln -sfn /usr/share/zaviya-install/${s}.py "$bin/${s}.py"
+  ln -sfn /usr/share/steamos-install/${s}.py "$bin/${s}.py"
 done
-[[ -f "${MOD}/ufs-install/zaviya-installer.svg" ]] && \
-  install -Dm 0644 "${MOD}/ufs-install/zaviya-installer.svg" \
-    "$icons/scalable/apps/zaviya-installer.svg"
-install -m 0644 "${MOD}/ufs-install/zaviya-installer.desktop" \
-  "$apps/zaviya-installer.desktop"
+[[ -f "${MOD}/ufs-install/steamos-installer.svg" ]] && \
+  install -Dm 0644 "${MOD}/ufs-install/steamos-installer.svg" \
+    "$icons/scalable/apps/steamos-installer.svg"
+install -m 0644 "${MOD}/ufs-install/steamos-installer.desktop" \
+  "$apps/steamos-installer.desktop"
 rm -f "$HOME_DST/Desktop/Easy UFS Installer.desktop" \
   "$R/etc/skel/Desktop/Easy UFS Installer.desktop" \
-  "$HOME_DST/Desktop/Zaviya Installer.desktop" \
-  "$R/etc/skel/Desktop/Zaviya Installer.desktop"
+  "$HOME_DST/Desktop/SteamOS Installer.desktop" \
+  "$R/etc/skel/Desktop/SteamOS Installer.desktop"
 
 # Offline update staging GUI and privileged helper.
 mkdir -p "$R/usr/share/konkr-update"

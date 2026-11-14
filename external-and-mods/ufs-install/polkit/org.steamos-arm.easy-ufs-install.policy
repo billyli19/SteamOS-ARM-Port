@@ -3,35 +3,35 @@
  "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
  "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
 <policyconfig>
-  <vendor>Zaviya</vendor>
+  <vendor>SteamOS</vendor>
   <action id="org.steamos-arm.easy-ufs-install">
-    <description>Install Zaviya to internal storage</description>
-    <message>Installing Zaviya to internal storage needs administrator rights</message>
+    <description>Install SteamOS to internal storage</description>
+    <message>Installing SteamOS to internal storage needs administrator rights</message>
     <defaults>
       <allow_any>no</allow_any>
       <allow_inactive>no</allow_inactive>
       <allow_active>yes</allow_active>
     </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">/usr/share/zaviya-install/install-to-internal.sh</annotate>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/share/steamos-install/install-to-internal.sh</annotate>
   </action>
   <action id="org.steamos-arm.easy-ufs-probe">
-    <description>Check internal storage for Zaviya</description>
+    <description>Check internal storage for SteamOS</description>
     <message>Checking internal storage needs administrator rights</message>
     <defaults>
       <allow_any>no</allow_any>
       <allow_inactive>no</allow_inactive>
       <allow_active>yes</allow_active>
     </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">/usr/share/zaviya-install/ufs-probe-sizes.sh</annotate>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/share/steamos-install/ufs-probe-sizes.sh</annotate>
   </action>
   <action id="org.steamos-arm.easy-ufs-start">
-    <description>Start the Zaviya install</description>
-    <message>Installing Zaviya to internal storage needs administrator rights</message>
+    <description>Start the SteamOS install</description>
+    <message>Installing SteamOS to internal storage needs administrator rights</message>
     <defaults>
       <allow_any>no</allow_any>
       <allow_inactive>no</allow_inactive>
       <allow_active>yes</allow_active>
     </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">/usr/share/zaviya-install/zaviya-install-start</annotate>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/share/steamos-install/steamos-install-start</annotate>
   </action>
 </policyconfig>

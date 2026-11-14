@@ -432,6 +432,15 @@ jobs:
         grep -v '^home/steamos/.local/share/Steam/\|^usr/lib/modules/\|^usr/lib/firmware/' audit/added.txt > audit/added-small.txt || true
         cut -d/ -f1-4 audit/added-small.txt | sort | uniq -c | sort -rn | sed -n '1,150p'
         echo "::endgroup::"
+        echo "::group::everything added outside the Steam client, kernel modules, firmware, translations and Valve-original backups"
+        grep -v '^usr/share/locale/\|^opt/stock-steamos/\|^usr/share/plasma/keyboard/\|^usr/share/inputplumber/' audit/added-small.txt || true
+        echo "::endgroup::"
+        echo "::group::Valve files removed"
+        cat audit/removed.txt
+        echo "::endgroup::"
+        echo "::group::boot splash pieces in the image (plymouth, splash)"
+        grep -i 'plymouth\|splash' audit/all-files.txt | grep -v '^home/steamos/.local/share/Steam/' | sed -n '1,80p' || true
+        echo "::endgroup::"
         echo "::group::menu entries, desktop icons, autostart and Decky plugins added"
         grep -E '\.desktop$|^home/steamos/Desktop/|^etc/skel/Desktop/|^home/steamos/homebrew/plugins/[^/]+/plugin.json$' audit/added.txt || true
         echo "::endgroup::"
@@ -492,3 +501,4 @@ jobs:
 # image retry 5: optional KDE extras no longer required by the final check
 # run 11: KDE extras get extra-cmake-modules before they are built
 # run 12: Zaviya branding removed (boot logo, videos, wallpaper, names); control panel name fixed
+# run 13: installer fully renamed, CPU vendor/name in Settings, build helpers removed, fuller audit

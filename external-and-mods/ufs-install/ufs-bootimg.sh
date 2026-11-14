@@ -40,7 +40,7 @@ describe_kernel_root() {
 
 ufs_fstab_text() {
     cat <<EOF
-# Zaviya on internal UFS (partitions by GPT name)
+# SteamOS on internal UFS (partitions by GPT name)
 PARTLABEL=STORAGE  /      ext4  defaults,noatime                  0 1
 PARTLABEL=${BOOT_LABEL}  /boot  vfat  defaults,umask=0077,nofail        0 2
 PARTLABEL=HOME     /home  ext4  defaults,noatime,commit=30        0 2

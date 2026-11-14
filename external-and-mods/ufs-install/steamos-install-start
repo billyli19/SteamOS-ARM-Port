@@ -3,7 +3,7 @@
 # Starts the install as a system unit, so it outlives the window and Steam.
 # Run by pkexec (polkit action org.steamos-arm.easy-ufs-start).
 #
-#   zaviya-install-start [--check] --expect FP --home all|essentials|none \
+#   steamos-install-start [--check] --expect FP --home all|essentials|none \
 #                        (--android-gb N | --resume)
 #
 # --check validates the arguments, prints the command it would run and exits
@@ -15,10 +15,10 @@ export PATH="/usr/sbin:/usr/bin:/sbin:/bin"
 unset LD_LIBRARY_PATH LD_PRELOAD || true
 
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-UNIT=zaviya-install
-LOG=/run/zaviya-install.log
+UNIT=steamos-install
+LOG=/run/steamos-install.log
 
-bad() { echo "zaviya-install-start: $*" >&2; exit 2; }
+bad() { echo "steamos-install-start: $*" >&2; exit 2; }
 
 CHECK=0
 EXPECT=""
@@ -55,7 +55,7 @@ if (( CHECK )); then
   exit 0
 fi
 
-[[ $EUID -eq 0 ]] || { echo "zaviya-install-start: run as root (through pkexec)" >&2; exit 2; }
+[[ $EUID -eq 0 ]] || { echo "steamos-install-start: run as root (through pkexec)" >&2; exit 2; }
 
 # Same test as the plugin: a unit that is starting or running blocks a new one.
 active="$(systemctl show "$UNIT" -p LoadState,ActiveState,SubState 2>/dev/null || true)"

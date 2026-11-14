@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Backend of the Zaviya installer: everything except the window.
+"""Backend of the SteamOS installer: everything except the window.
 
 Pure standard library (no gi). The window calls Installer.probe(),
 Installer.start() and Installer.status(); the rest is parsing and checks that
-can be tested without a device. With ZAVIYA_INSTALLER_FAKE=1 the Installer
+can be tested without a device. With STEAMOS_INSTALLER_FAKE=1 the Installer
 pretends, with canned sizes and a simulated log, so the window can be built and
 looked at on a computer.
 """
@@ -17,8 +17,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
-INSTALL_UNIT = "zaviya-install"
-INSTALL_LOG = "/run/zaviya-install.log"
+INSTALL_UNIT = "steamos-install"
+INSTALL_LOG = "/run/steamos-install.log"
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
@@ -85,14 +85,14 @@ class Probe:
             err = ("Other partitions follow Android's userdata ("
                    + (d.get("OCCUPIED") or "unknown") + "). Remove them first.")
         elif mode == "toosmall":
-            err = "There is not enough room after Android's userdata for Zaviya."
+            err = "There is not enough room after Android's userdata for SteamOS."
         return cls(fingerprint=fp, existing_install=d.get("EXISTING_INSTALL") == "1",
                    tablet=d.get("TABLET") == "1",
                    running_from_removable=d.get("RUNNING_FROM_SD") == "1",
                    error=err, mode=mode, **nums)
 
 
-def zaviya_home_gib(probe: Probe, android_gib: int) -> int:
+def steamos_home_gib(probe: Probe, android_gib: int) -> int:
     """Home space left for the chosen Android size, in whole GiB, never too high.
 
     ufs-partition.py plan(): userdata ends android_gib after its start, boot
@@ -268,7 +268,7 @@ def last_log_lines(text: str, n: int = 8) -> "list[str]":
 
 # ------------------------------------------------------------- installer ----
 def is_fake() -> bool:
-    return os.environ.get("ZAVIYA_INSTALLER_FAKE") == "1"
+    return os.environ.get("STEAMOS_INSTALLER_FAKE") == "1"
 
 
 def _clean_env() -> "dict[str, str]":
@@ -317,7 +317,7 @@ class _RealInstaller:
         if not FINGERPRINT_RE.fullmatch(str(fingerprint)):
             return "No partition table to check against; restart the installer"
         size = ["--resume"] if reinstall else ["--android-gb", str(int(android_gib))]
-        args = [os.path.join(self.dir, "zaviya-install-start"), "--expect", fingerprint,
+        args = [os.path.join(self.dir, "steamos-install-start"), "--expect", fingerprint,
                 "--home", home_mode, *size]
         try:
             r = self._pkexec(args)
@@ -352,16 +352,16 @@ class _FakeInstaller:
         self.t0: Optional[float] = None
         self.reinstall = False
         self.home_mode = "all"
-        self.fail = os.environ.get("ZAVIYA_INSTALLER_FAKE_FAIL") == "1"
+        self.fail = os.environ.get("STEAMOS_INSTALLER_FAKE_FAIL") == "1"
 
     def probe(self) -> Probe:
-        existing = os.environ.get("ZAVIYA_INSTALLER_FAKE_EXISTING") == "1"
+        existing = os.environ.get("STEAMOS_INSTALLER_FAKE_EXISTING") == "1"
         p = Probe(min_gib=16, max_gib=202, recommended_gib=64, fingerprint="0123456789abcdef",
                   existing_install=existing,
-                  tablet=os.environ.get("ZAVIYA_INSTALLER_FAKE_TABLET") == "1",
+                  tablet=os.environ.get("STEAMOS_INSTALLER_FAKE_TABLET") == "1",
                   running_from_removable=True, orig_android_gib=240, available_gib=240.0, boot_gib=2, root_gib=20,
                   disk_total_gib=256, mode="installed" if existing else "fresh")
-        p.unsupported = os.environ.get("ZAVIYA_INSTALLER_FAKE_UNSUPPORTED") == "1"
+        p.unsupported = os.environ.get("STEAMOS_INSTALLER_FAKE_UNSUPPORTED") == "1"
         return p
 
     def start(self, android_gib: int, home_mode: str, fingerprint: str, reinstall: bool) -> Optional[str]:
@@ -407,7 +407,7 @@ class _FakeInstaller:
             if self.fail and elapsed >= 9.0:
                 return "failed", text + red + "rsync failed while copying the system (simulated)\n"
         if elapsed >= self.DURATION:
-            return "done", text + "\n" + green + "done. Zaviya is on internal storage.\n"
+            return "done", text + "\n" + green + "done. SteamOS is on internal storage.\n"
         return "running", text
 
     def status(self) -> "tuple[str, Progress, str]":
