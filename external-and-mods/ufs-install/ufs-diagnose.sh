@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# UFS / dual-boot diagnostic (run as root from Zaviya on microSD)
+# UFS / dual-boot diagnostic (run as root from SteamOS on microSD)
 set -euo pipefail
 
 export PATH="/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
@@ -72,21 +72,21 @@ echo
 echo "--- Detected layout: ${LAYOUT} ---"
 case "$LAYOUT" in
   three-part)
-    echo "  Zaviya (3 Linux partitions):"
+    echo "  SteamOS (3 Linux partitions):"
     echo "    boot    = KERNEL  (${BOOTP})"
-    echo "    STORAGE  = Zaviya root   (${ST})"
+    echo "    STORAGE  = SteamOS root   (${ST})"
     echo "    HOME     = /home          (${HM})"
     ;;
   old-2part)
     echo "  Older layout (2 Linux partitions, no HOME):"
     echo "    boot    = KERNEL  (${BOOTP})"
     echo "    STORAGE  = Linux rootfs  (${ST})"
-    echo "  This Zaviya installer will not reuse that layout. UNINSTALL CFW first."
+    echo "  This SteamOS installer will not reuse that layout. UNINSTALL CFW first."
     ;;
   incompatible-or-partial)
     echo "  boot partition present but STORAGE/HOME missing, or layout is incomplete."
     echo "    boot    = KERNEL  (${BOOTP:-missing})"
-    echo "    STORAGE  = Zaviya root   (${ST:-missing})"
+    echo "    STORAGE  = SteamOS root   (${ST:-missing})"
     echo "    HOME     = /home          (${HM:-missing})"
     ;;
   android-only)
@@ -178,7 +178,7 @@ case "$LAYOUT" in
   old-2part)
     echo "  Expected layout:    boot + STORAGE + HOME"
     echo "  This device has:    boot + STORAGE only"
-    echo "  Action:             ABL 'UNINSTALL CFW', then fresh Zaviya UFS install"
+    echo "  Action:             ABL 'UNINSTALL CFW', then fresh SteamOS UFS install"
     ;;
   incompatible-or-partial|mixed-or-unknown)
     echo "  Expected layout:    boot + STORAGE + HOME"

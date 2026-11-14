@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Puts "Zaviya Installer" in Steam's library while running from a card or USB drive.
+"""Puts "SteamOS Installer" in Steam's library while running from a card or USB drive.
 
 Run before Steam starts (RUNSTEAM.sh). On removable media the shortcut and its
 artwork are added to every Steam user's shortcuts.vdf; on internal storage any
@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-NAME = "Zaviya Installer"
+NAME = "SteamOS Installer"
 EXE = "/usr/bin/zaviya-installer"
 ICON = "/usr/share/zaviya-install/art/installer-icon.png"
 DEFAULT_VDF = str(HERE / "shortcuts_vdf.py")

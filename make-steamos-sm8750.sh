@@ -376,7 +376,7 @@ EOF
   trap - EXIT INT TERM
 
   log "================================================================="
-  log "SUCCESS: Zaviya for AYN Odin 3 built:"
+  log "SUCCESS: SteamOS for AYN Odin 3 built:"
   log "Image: ${IMG} ($((total_mib)) MiB)"
   log "Flash to microSD with: sudo dd if=${IMG} of=/dev/sdX bs=4M status=progress"
   log "Boot instructions: Hold Volume Down -> Boot Mode: Linux -> START"

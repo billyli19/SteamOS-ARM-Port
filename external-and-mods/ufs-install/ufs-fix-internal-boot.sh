@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Repair Zaviya internal boot on UFS (run as root from microSD).
+# Repair SteamOS internal boot on UFS (run as root from microSD).
 set -euo pipefail
 
 VERSION="2.0.0"
@@ -22,7 +22,7 @@ usage() {
   cat <<EOF
 ufs-fix-internal-boot v${VERSION}
 
-Repair Zaviya internal boot (KERNEL + fstab).
+Repair SteamOS internal boot (KERNEL + fstab).
 Writes boot/KERNEL with root=PARTLABEL=STORAGE (UFS-safe, not SD UUID).
 Writes STORAGE /etc/fstab for boot + STORAGE + HOME.
 
@@ -98,7 +98,7 @@ patch_kernel() {
 fix_fstab_on_storage() {
   local st_dev=$1 tmp=$2
   if (( DRY_RUN )); then
-    log "[dry-run] write Zaviya 3-partition fstab on ${st_dev}"
+    log "[dry-run] write SteamOS 3-partition fstab on ${st_dev}"
     return
   fi
   log "Fixing /etc/fstab on ${st_dev}..."
@@ -118,7 +118,7 @@ main() {
   done
 
   [[ $EUID -eq 0 ]] || die "Run as root: sudo $0"
-  [[ -f /boot/KERNEL ]] || die "Missing /boot/KERNEL on SD (boot Zaviya from microSD first)"
+  [[ -f /boot/KERNEL ]] || die "Missing /boot/KERNEL on SD (boot SteamOS from microSD first)"
 
   DEVICE=$(detect_ufs_device)
   [[ -n "$DEVICE" ]] || die "No UFS with userdata partition found."
@@ -138,7 +138,7 @@ main() {
   case "$LAYOUT" in
     old-2part)
       die "Old two-partition layout (boot + STORAGE, no HOME).
-Reinstall with the Zaviya 3-partition installer after ABL 'UNINSTALL CFW'."
+Reinstall with the SteamOS 3-partition installer after ABL 'UNINSTALL CFW'."
       ;;
     incompatible-or-partial)
       die "Incompatible or partial UFS layout. Expected boot + STORAGE + HOME.
@@ -146,7 +146,7 @@ Re-run: sudo ./install-to-internal.sh --deploy-only
 Or use ABL 'UNINSTALL CFW' before a fresh install."
       ;;
     none)
-      die "No Zaviya internal partitions found."
+      die "No SteamOS internal partitions found."
       ;;
   esac
 

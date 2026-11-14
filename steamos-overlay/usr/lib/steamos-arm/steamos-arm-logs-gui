@@ -4,9 +4,9 @@
 set -u
 
 LOGS=/usr/lib/steamos-arm/steamos-arm-logs
-say() { command -v notify-send >/dev/null 2>&1 && notify-send -a Zaviya "Record Logs" "$1" || echo "$1"; }
+say() { command -v notify-send >/dev/null 2>&1 && notify-send -a SteamOS "Record Logs" "$1" || echo "$1"; }
 
-command -v notify-send >/dev/null 2>&1 && notify-send -a Zaviya "Record Logs" "Collecting logs, this can take up to a minute."
+command -v notify-send >/dev/null 2>&1 && notify-send -a SteamOS "Record Logs" "Collecting logs, this can take up to a minute."
 path="$("$LOGS" 2>/dev/null | tail -n 1)"
 
 if [[ -z "$path" || ! -f "$path" ]]; then

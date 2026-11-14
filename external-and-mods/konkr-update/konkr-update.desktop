@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Zaviya Update
-Comment=Update Zaviya while keeping games and saves
+Name=System Update
+Comment=Update the system while keeping games and saves
 Exec=konkr-update-gui
 Icon=system-software-update
 Terminal=false

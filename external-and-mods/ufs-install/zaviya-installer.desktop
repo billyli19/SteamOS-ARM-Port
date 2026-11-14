@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=Zaviya Installer
+Name=SteamOS Installer
 GenericName=Install Linux to internal UFS
-Comment=Installs Zaviya to internal storage (boot + system + home).
+Comment=Installs SteamOS to internal storage (boot + system + home).
 Exec=zaviya-installer
 Icon=zaviya-installer
 Terminal=false

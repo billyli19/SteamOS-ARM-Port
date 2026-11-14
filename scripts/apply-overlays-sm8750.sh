@@ -90,6 +90,10 @@ done
 # from the SD card, the Legion Y700 Gen 4 from a USB drive.
 ONLY_UFS=1 STEAMOS_HOME="$R/home/steamos" "${ROOT}/scripts/install-vendor-apps.sh" "$R" \
   || die "installer install failed"
+# The installer is all this image takes from the vendor apps: no update app
+# in the menu (the update engine itself, konkr-update.py, is installed below).
+rm -f "$R/usr/share/applications/konkr-update.desktop" "$R/usr/bin/konkr-update-gui" \
+  "$R/usr/share/konkr-update/konkr-update-gui.py"
 
 # Merge SM8750 firmware
 cp -a "$KOUT/firmware/." "$R/usr/lib/firmware/"
@@ -614,58 +618,31 @@ ln -sfn ../plugin_loader.service "$R/usr/lib/systemd/system/multi-user.target.wa
 # arm64 ExecStart and environment whatever unit file wins.
 install_file "$OVL/usr/lib/systemd/system/plugin_loader.service.d/50-steamos-arm-box64.conf" \
   "$R/usr/lib/systemd/system/plugin_loader.service.d/50-steamos-arm-box64.conf" 0644
-# Zaviya Control: profiles, fan and stick lighting in Quick Access (talks
-# to odin3d here, konkrd on the other images).
+# Handheld Control (PR 71): fan, CPU, charging and stick-light settings inside
+# Steam's own Quick Access and Settings (talks to odin3d).
 HC_SRC="${MOD}/Decky/sm8650/konkr-control"
 HC_DST="$HOME_DST/homebrew/plugins/konkr-control"
 rm -rf "$HC_DST"; mkdir -p "$HC_DST/dist"
 install -m0644 "$HC_SRC/plugin.json" "$HC_SRC/main.py" "$HC_DST/"
 [[ -f "$HC_SRC/package.json" ]] && install -m0644 "$HC_SRC/package.json" "$HC_DST/"
 install -m0644 "$HC_SRC/dist/index.js" "$HC_DST/dist/"
-# Lossless Scaling frame generation, the same as the 8 Gen 3 / 8 Gen 2 images:
-# the lsfg-vk 2.0 ARM64 layer (registered as an implicit Vulkan layer, off
-# until the plugin turns it on for a game) and its Decky plugin, which starts
-# new profiles in performance mode.
-log "== lsfg-vk 2.0 (ARM layer + Decky plugin)"
-for prefix in "$R/usr" "$R/usr/local"; do
-  rm -f "$prefix/lib/liblsfg-vk.so" "$prefix/lib/liblsfg-vk-arm64.so" \
-    "$prefix/share/vulkan/implicit_layer.d/VkLayer_LS_frame_generation.json" \
-    "$prefix/share/vulkan/implicit_layer.d/VkLayer_LS_frame_generation_arm64.json"
-done
-install_file "${ROOT}/sm8650-overlay/usr/lib/liblsfg-vk-layer-arm64.so" "$R/usr/lib/liblsfg-vk-layer-arm64.so" 0644
-install_file "${ROOT}/sm8650-overlay/usr/lib/liblsfg-vk-layer-arm64.so.README" "$R/usr/lib/liblsfg-vk-layer-arm64.so.README" 0644
-install_file "${ROOT}/sm8650-overlay/usr/share/vulkan/implicit_layer.d/VkLayer_LSFGVK_frame_generation_arm64.json" \
-  "$R/usr/share/vulkan/implicit_layer.d/VkLayer_LSFGVK_frame_generation_arm64.json" 0644
-# lsfg-vk 1.x next to it for the Frame Gen Classic plugin (see its README).
-for f in liblsfg-vk-classic-arm64.so liblsfg-vk-classic-arm64.so.README; do
-  install_file "${ROOT}/sm8650-overlay/usr/lib/$f" "$R/usr/lib/$f" 0644
-done
-install_file "${ROOT}/sm8650-overlay/usr/share/vulkan/implicit_layer.d/VkLayer_LS_frame_generation_classic_arm64.json" \
-  "$R/usr/share/vulkan/implicit_layer.d/VkLayer_LS_frame_generation_classic_arm64.json" 0644
-mkdir -p "$R/usr/share/licenses"
-cp -r --no-preserve=mode,ownership "${ROOT}/sm8650-overlay/usr/share/licenses/lsfg-vk" \
-  "${ROOT}/sm8650-overlay/usr/share/licenses/lsfg-vk-classic" "$R/usr/share/licenses/"
-rsync -a --copy-links --exclude '.local/lib/liblsfg-vk.so' "${MOD}/Decky/Plug-ins/" "$HOME_DST/"
-# Frame Gen Classic (lsfg-vk 1.x) also goes in the system: updates can't
-# carry a new home plugin folder, so decky-plugin-fixes installs it from here.
-mkdir -p "$R/usr/share/steamos-arm/decky-plugins"
-rm -rf "$R/usr/share/steamos-arm/decky-plugins/decky-lsfg-vk-classic"
-cp -r --no-preserve=ownership "${MOD}/Decky/Plug-ins/homebrew/plugins/decky-lsfg-vk-classic" \
-  "$R/usr/share/steamos-arm/decky-plugins/"
-rm -f "$HOME_DST/.local/lib/liblsfg-vk.so" \
-  "$HOME_DST/.local/share/vulkan/implicit_layer.d/VkLayer_LS_frame_generation.json"
-[[ -f "$HOME_DST/.config/lsfg-vk/conf.toml" ]] && sed -i 's|/home/steam/|/home/steamos/|g' "$HOME_DST/.config/lsfg-vk/conf.toml"
 # Decky starts the plugin's helpers; without this they outlive a stop and
 # hold up shutdown.
 install_file "$OVL/usr/share/steamos-odin/plugin_loader.service.d/fast-stop.conf" \
   "$R/usr/lib/systemd/system/plugin_loader.service.d/fast-stop.conf" 0644
-[[ -r "$R/usr/lib/liblsfg-vk-layer-arm64.so" && -f "$HOME_DST/homebrew/plugins/decky-lsfg-vk/plugin.json" \
-   && -r "$R/usr/lib/liblsfg-vk-classic-arm64.so" && -f "$HOME_DST/homebrew/plugins/decky-lsfg-vk-classic/plugin.json" ]] \
-  || die "lsfg-vk missing from the 8 Elite image"
 chown -R 1000:1000 "$HOME_DST/homebrew"
-# Loadout: emulators, PC game stores and apps (engine + Decky plugin).
+# Steam's power controls relay and the video-decode engine (no Loadout).
 "${SCRIPT_DIR}/install-hub.sh" "$R" "$HOME_DST"
-"${SCRIPT_DIR}/install-branding.sh" "$R"
+# Decky carries exactly one plugin on this image: Handheld Control (PR 71).
+for _p in "$HOME_DST/homebrew/plugins"/*/; do
+  [[ "$(basename "$_p")" == konkr-control ]] && continue
+  log "removing Decky plugin not wanted on this image: $(basename "$_p")"
+  rm -rf "$_p"
+done
+[[ -f "$HOME_DST/homebrew/plugins/konkr-control/plugin.json" ]] || die "Handheld Control plugin missing"
+rm -rf "$R/usr/share/steamos-arm/decky-plugins" "$R/usr/share/steamos-odin/decky-plugins"
+# No branding step: boot, startup video, wallpaper, icons, login screen and
+# the OS name stay as Valve ships them.
 "${SCRIPT_DIR}/install-webhelper-acquire-layer.sh" "$R"
 
 # GPU/GMU hang dumps kept past the kernel's five minutes (debug-logs copies them).
@@ -694,10 +671,9 @@ install_file "$OVL/usr/lib/steamos-arm/steamos-arm-space-guard" "$R/usr/lib/stea
 install_file "$OVL/usr/lib/systemd/system/steamos-arm-space-guard.service" \
   "$R/usr/lib/systemd/system/steamos-arm-space-guard.service" 0644
 ln -sfn ../steamos-arm-space-guard.service "$R/usr/lib/systemd/system/multi-user.target.wants/steamos-arm-space-guard.service"
-# Log recorder (Game Mode button in the Decky plugin, Desktop Mode icon).
+# Log recorder: the command only (steamos-arm-logs), no desktop icon.
 install_file "$OVL/usr/lib/steamos-arm/steamos-arm-logs" "$R/usr/lib/steamos-arm/steamos-arm-logs" 0755
-install_file "$OVL/usr/lib/steamos-arm/steamos-arm-logs-gui" "$R/usr/lib/steamos-arm/steamos-arm-logs-gui" 0755
-ln -sfn ../lib/steamos-arm/steamos-arm-logs "$R/usr/bin/zaviya-logs"
+ln -sfn ../lib/steamos-arm/steamos-arm-logs "$R/usr/bin/steamos-arm-logs"
 # Desktop Mode: restart the portal if it came up before the Desktop's
 # environment (Steam's right-stick mouse needs its KDE back end).
 install_file "$OVL/usr/lib/steamos-arm/desktop-portal-fix" "$R/usr/lib/steamos-arm/desktop-portal-fix" 0755
@@ -740,13 +716,6 @@ install_file "$OVL/usr/lib/NetworkManager/conf.d/42-steamos-arm-network.conf" \
   "$R/usr/lib/NetworkManager/conf.d/42-steamos-arm-network.conf" 0644
 install_file "$OVL/usr/share/steamos-arm/update/signing.pub" \
   "$R/usr/share/steamos-arm/update/signing.pub" 0644
-# Settings > System names the installed release (set again on each boot,
-# since updates change it).
-install_file "$OVL/usr/lib/steamos-arm/os-release-version" "$R/usr/lib/steamos-arm/os-release-version" 0755
-install_file "$OVL/usr/lib/systemd/system/steamos-arm-os-release.service" \
-  "$R/usr/lib/systemd/system/steamos-arm-os-release.service" 0644
-ln -sfn ../steamos-arm-os-release.service \
-  "$R/usr/lib/systemd/system/multi-user.target.wants/steamos-arm-os-release.service"
 # Panel refresh calibration (RP6, Odin 3): the tool, and the unit that puts
 # the saved frame lengths back at boot.
 install_file "$OVL/usr/lib/steamos-arm/panel-calibrate" "$R/usr/lib/steamos-arm/panel-calibrate" 0755
@@ -805,14 +774,13 @@ done
 
 log "== Return to Gaming Mode desktop icon"
 install_file "$OVL/etc/skel/Desktop/Return.desktop" "$R/etc/skel/Desktop/Return.desktop" 0644
-install_file "$OVL/etc/skel/Desktop/Record Logs.desktop" "$R/etc/skel/Desktop/Record Logs.desktop" 0644
 install_file "$OVL/etc/xdg/plasma-workspace/env/set-return-icon.sh" \
   "$R/etc/xdg/plasma-workspace/env/set-return-icon.sh" 0755
-install_file "$OVL/usr/share/icons/hicolor/scalable/apps/steamos-gamemode.svg" \
-  "$R/usr/share/icons/hicolor/scalable/apps/steamos-gamemode.svg" 0644
+# The icon is Valve's own steamos-gamemode (not replaced).
+[[ -f "$R/usr/share/icons/hicolor/scalable/apps/steamos-gamemode.svg" ]] \
+  || log "NOTE: Valve's rootfs has no steamos-gamemode icon; Return to Gaming Mode gets a generic one"
 install_file "$OVL/etc/skel/Desktop/Return.desktop" "$R/usr/share/applications/steamos-gamemode.desktop" 0644
 install_file "$OVL/etc/skel/Desktop/Return.desktop" "$HOME_DST/Desktop/Return.desktop" 0755
-install_file "$OVL/etc/skel/Desktop/Record Logs.desktop" "$HOME_DST/Desktop/Record Logs.desktop" 0755
 chown -R 1000:1000 "$HOME_DST/Desktop"
 
 # Complete Steam ARM client in the image, same as the 8 Gen 2 / 8 Gen 3 builds.
@@ -945,6 +913,5 @@ LIBCHECK_OPTS=(--no-gear)
 # Last: what this image installed, and which release it is (see apply-overlays.sh).
 python3 "$ROOT/external-and-mods/konkr-update/konkr-update.py" record-inventory --root "$R" \
   --version "${STEAMOS_ARM_VERSION:-1.3.0}" --soc sm8750 | tee -a "$LOG"
-python3 "$OVL/usr/lib/steamos-arm/os-release-version" "$R" | tee -a "$LOG"
 
 log "== SM8750 overlays successfully applied"

@@ -131,7 +131,7 @@ def sync(boot, force=False):
     (boot / STAMP).unlink(missing_ok=True)
     write_atomic(boot / 'Image.gz', gz)
     lines = ['# Written by kernel-efi-sync from KERNEL. Changes here are overwritten.',
-             'default steamos', 'timeout 0', 'label steamos', '    menu label Zaviya',
+             'default steamos', 'timeout 0', 'label steamos', '    menu label SteamOS',
              '    linux /Image.gz']
     if len(initrd) >= PAGE_MIN_INITRD:
         write_atomic(boot / 'initrd.img', initrd)
@@ -148,7 +148,7 @@ def sync(boot, force=False):
     # No fdtdir: it takes the first file with the compatible, whichever variant
     # that is. Without it the bootloader keeps the DTB of the picked model.
     lines += initrd_line + [f'    append {cmdline}', '',
-                            'label verbose', '    menu label Zaviya (show boot log)',
+                            'label verbose', '    menu label SteamOS (show boot log)',
                             '    linux /Image.gz'] + initrd_line + \
         [f'    append {verbose_cmdline(cmdline)}', '']
     conf.parent.mkdir(exist_ok=True)

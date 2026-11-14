@@ -372,6 +372,10 @@ jobs:
       run: |
         ./make-steamos-sm8750.sh --rootfs-only
         df -h / | tail -1
+    - name: List Valve's files before anything is added
+      run: |
+        sudo find "${STEAMOS_WORK}/rootfs" -xdev \( -type f -o -type l \) -printf '%P\n' | sort > /tmp/valve-files.txt
+        wc -l /tmp/valve-files.txt
     - name: Build the three extra parts (hardware video decode, overlay GPU reading, Desktop Bluetooth/Display pages)
       run: |
         # Built against Valve's unpacked system, before the image is put
@@ -400,7 +404,7 @@ jobs:
         { echo "### Extra parts"; echo "Built:${ok:- none}"; echo; echo "Failed:${bad:- none}"; } >> "$GITHUB_STEP_SUMMARY"
         df -h / | tail -1
         if [ -n "$bad" ]; then echo "::error::extra parts that failed to build:$bad"; exit 1; fi
-    - name: Build Zaviya Odin 3 image
+    - name: Build the Odin 3 image
       run: |
         if true; then   # always the kernel built in this run
           export SM8750_KERNEL=source
@@ -415,6 +419,37 @@ jobs:
         if [ -s "${STEAMOS_WORK}/kde-extras-build/kde-extras.tar" ]; then export KDE_EXTRAS="${STEAMOS_WORK}/kde-extras-build/kde-extras.tar"; fi
         export STEAM_ARM_CHANNEL="${STEAM_ARM_CHANNEL:-steamdeck_publicbeta}"
         ./make-steamos-sm8750.sh
+    - name: Audit what the build added to Valve's system
+      continue-on-error: true
+      run: |
+        R="${STEAMOS_WORK}/rootfs"
+        mkdir -p audit
+        sudo find "$R" -xdev \( -type f -o -type l \) -printf '%P\n' | sort > audit/all-files.txt
+        comm -13 /tmp/valve-files.txt audit/all-files.txt > audit/added.txt
+        comm -23 /tmp/valve-files.txt audit/all-files.txt > audit/removed.txt
+        echo "added: $(wc -l < audit/added.txt)   removed: $(wc -l < audit/removed.txt)"
+        echo "::group::added, by folder (outside the Steam client, kernel modules and firmware)"
+        grep -v '^home/steamos/.local/share/Steam/\|^usr/lib/modules/\|^usr/lib/firmware/' audit/added.txt > audit/added-small.txt || true
+        cut -d/ -f1-4 audit/added-small.txt | sort | uniq -c | sort -rn | sed -n '1,150p'
+        echo "::endgroup::"
+        echo "::group::menu entries, desktop icons, autostart and Decky plugins added"
+        grep -E '\.desktop$|^home/steamos/Desktop/|^etc/skel/Desktop/|^home/steamos/homebrew/plugins/[^/]+/plugin.json$' audit/added.txt || true
+        echo "::endgroup::"
+        echo "::group::files with zaviya in the name"
+        grep -i zaviya audit/all-files.txt | tee audit/zaviya-names.txt || true
+        echo "::endgroup::"
+        echo "::group::text files that mention Zaviya"
+        sudo grep -rIil zaviya "$R/etc" "$R/usr" "$R/home/steamos" --exclude-dir=modules --exclude-dir=firmware \
+          --exclude-dir=Steam 2>/dev/null | sed "s|^$R/||" | tee audit/zaviya-text.txt || true
+        echo "::endgroup::"
+        echo "names: $(wc -l < audit/zaviya-names.txt)   text: $(wc -l < audit/zaviya-text.txt)"
+    - name: Upload the audit
+      continue-on-error: true
+      uses: actions/upload-artifact@v7
+      with:
+        name: odin3-image-audit
+        path: audit/
+        retention-days: 14
     - name: Check if Steam seed exists to cache
       id: check-seed-exists
       run: |
@@ -437,16 +472,16 @@ jobs:
         IMG="${STEAMOS_WORK}/steamos-odin3.img"
         echo "Compressing $IMG ..."
         ls -lh "$IMG"
-        zstd -T0 -3 "$IMG" -o zaviya-odin3.img.zst
-        ls -lh zaviya-odin3.img.zst
-        sha256sum zaviya-odin3.img.zst > zaviya-odin3.img.zst.sha256
+        zstd -T0 -3 "$IMG" -o steamos-odin3.img.zst
+        ls -lh steamos-odin3.img.zst
+        sha256sum steamos-odin3.img.zst > steamos-odin3.img.zst.sha256
     - name: Upload image artifact
       uses: actions/upload-artifact@v7
       with:
-        name: zaviya-odin3-image
+        name: steamos-odin3-image
         path: |
-          zaviya-odin3.img.zst
-          zaviya-odin3.img.zst.sha256
+          steamos-odin3.img.zst
+          steamos-odin3.img.zst.sha256
         retention-days: 14
         compression-level: 0
     needs:
@@ -456,3 +491,4 @@ jobs:
 # image retry 3: box64 start test instead of the GLIBC_2.43 text test
 # image retry 5: optional KDE extras no longer required by the final check
 # run 11: KDE extras get extra-cmake-modules before they are built
+# run 12: Zaviya branding removed (boot logo, videos, wallpaper, names); control panel name fixed

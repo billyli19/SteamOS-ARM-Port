@@ -12,26 +12,17 @@ HOME_DST="${2:-}"
 OVL="${ROOT}/steamos-overlay"
 SRC="${ROOT}/external-and-mods/Decky/common/loadout"
 
+# Odin 3 own image: no Loadout (no commands, no store side, no Decky plugin).
+# hub.py and its catalog stay as an internal engine only: the login service
+# steamos-arm-video-accel runs "hub.py video-accel-sync" to give Flatpak apps
+# (Firefox and others) the hardware video decoder.
 install -d -m0755 "$R/usr/lib/steamos-arm/hub"
 install -m0755 "$OVL/usr/lib/steamos-arm/hub/hub.py" "$R/usr/lib/steamos-arm/hub/hub.py"
-install -m0755 "$OVL/usr/lib/steamos-arm/hub/loadout.py" "$R/usr/lib/steamos-arm/hub/loadout.py"
 install -m0644 "$OVL/usr/lib/steamos-arm/hub/catalog.json" "$R/usr/lib/steamos-arm/hub/catalog.json"
-install -m0755 "$OVL/usr/bin/steamos-arm-hub" "$R/usr/bin/steamos-arm-hub"
-install -m0755 "$OVL/usr/bin/loadout" "$R/usr/bin/loadout"
-
-# The panel goes where Decky's bundled plugins are synced from, and straight
-# into the user's plugins when the image has a home to seed.
-rm -rf "$R/usr/share/steamos-odin/decky-plugins/emulator-hub"
-BUNDLE="$R/usr/share/steamos-odin/decky-plugins/loadout"
-rm -rf "$BUNDLE"; install -d "$BUNDLE/dist"
-install -m0644 "$SRC/plugin.json" "$SRC/main.py" "$SRC/package.json" "$SRC/replaces" "$BUNDLE/"
-install -m0644 "$SRC/dist/index.js" "$BUNDLE/dist/"
+rm -f "$R/usr/bin/steamos-arm-hub" "$R/usr/bin/loadout" "$R/usr/lib/steamos-arm/hub/loadout.py"
+rm -rf "$R/usr/share/steamos-odin/decky-plugins/emulator-hub" "$R/usr/share/steamos-odin/decky-plugins/loadout"
 if [[ -n "$HOME_DST" && -d "$HOME_DST" ]]; then
-  rm -rf "$HOME_DST/homebrew/plugins/emulator-hub"
-  DST="$HOME_DST/homebrew/plugins/loadout"
-  rm -rf "$DST"; mkdir -p "$DST"
-  cp -a "$BUNDLE/." "$DST/"
-  chown -R 1000:1000 "$HOME_DST/homebrew"
+  rm -rf "$HOME_DST/homebrew/plugins/emulator-hub" "$HOME_DST/homebrew/plugins/loadout"
 fi
 # Steam's own power controls (Performance Profile, TDP, GPU clock, charge
 # limit) relayed to the device daemon; every image, it finds konkrd/odin3d.
@@ -49,4 +40,4 @@ ln -sfn ../steamos-arm-gamescope-caps.service "$R/usr/lib/systemd/system/graphic
 for gs in "$R/usr/bin/gamescope" "$R/usr/local/bin/gamescope"; do
   [[ -x "$gs" ]] && setcap cap_sys_nice=eip "$gs"
 done
-echo "Loadout installed"
+echo "power relay and video-decode engine installed (no Loadout)"

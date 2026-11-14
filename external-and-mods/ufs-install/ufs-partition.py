@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inspect, repartition and restore internal UFS for the Zaviya install.
+"""Inspect, repartition and restore internal UFS for the SteamOS install.
 
   ufs-partition.py detect  [--disk /dev/sda] [--storage-gib 20]
   ufs-partition.py apply   --android-gib N --expect FINGERPRINT --backup-dir DIR
@@ -441,7 +441,7 @@ def cmd_restore(a) -> None:
 
 def cmd_reset_android(a) -> None:
     """For installs made before blank_metadata(): Android won't boot after
-    the Zaviya install. Wipe Android's data the way fastboot -w does
+    the SteamOS install. Wipe Android's data the way fastboot -w does
     (userdata's head + metadata). The partition table is not touched."""
     t = read_table(a.disk)
     ud = userdata(t)

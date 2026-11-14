@@ -118,14 +118,7 @@ for p in list(root.glob("chunk*.js")) + list(root.glob("library.js")):
 
 # The guided tour's title is fixed text in Steam's strings; it doesn't read
 # os-release. Every language names the OS the same way.
-WELCOME = re.compile(r'("GuidedTour_(?:SteamOS_Welcome_Title|Welcome_Title_LGS)":"[^"]*?)SteamOS')
-for p in root.glob("localization/steamui_*-json.js"):
-    txt = p.read_text(errors="replace")
-    new, n = WELCOME.subn(r"\1Zaviya", txt)
-    if n:
-        p.write_text(new)
-        changed += 1
-        print(f"named the welcome title in {p.name}", file=sys.stderr)
+# (Left as Steam has it: this image keeps Valve's naming.)
 
 # Steam decides "setup done" in steamui.so. Current clients answer yes when no
 # account has signed in, without reading CompletedOOBE, so a new install never

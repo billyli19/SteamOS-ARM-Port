@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Zaviya Installer: full-screen GTK4 window that installs Zaviya from a
+"""SteamOS Installer: full-screen GTK4 window that installs SteamOS from a
 removable drive to internal storage.
 
 The window only asks, confirms and shows progress. Everything that touches the
@@ -523,7 +523,7 @@ class InstallerApp:
         Gtk.Settings.get_default().set_property("gtk-application-prefer-dark-theme", True)
 
         self.win = Gtk.ApplicationWindow(application=app)
-        self.win.set_title("Zaviya Installer")
+        self.win.set_title("SteamOS Installer")
         self.build_chrome()
         self.build_pages()
         if SNAPSHOT:
@@ -680,7 +680,7 @@ class InstallerApp:
     def build_size(self):
         title = label("Android storage", "h1")
         lead = label("Android keeps its system, and its apps and data are erased. The size chosen here is the "
-                     "space Android keeps. The rest of internal storage goes to Zaviya.", "lead")
+                     "space Android keeps. The rest of internal storage goes to SteamOS.", "lead")
         lead.add_css_class("mt2")
         self.adj = Gtk.Adjustment(value=64, lower=16, upper=200, step_increment=1, page_increment=4)
         self.scale = Gtk.Scale(orientation=Gtk.Orientation.HORIZONTAL, adjustment=self.adj)
@@ -697,7 +697,7 @@ class InstallerApp:
         self.android_val = label("64 GB", "big", wrap=False)
         self.zaviya_val = label("120 GB", "big", wrap=False)
         c1 = vbox(label("ANDROID", "cap", wrap=False), self.android_val, label("space kept for Android", "cap"))
-        c2 = vbox(label("ZAVIYA", "cap", wrap=False), self.zaviya_val, label("space for games and settings", "cap"))
+        c2 = vbox(label("STEAMOS", "cap", wrap=False), self.zaviya_val, label("space for games and settings", "cap"))
         c1.set_hexpand(True)
         c2.set_hexpand(True)
         readout = hbox(c1, c2)
@@ -727,10 +727,10 @@ class InstallerApp:
         self.on_size_changed(self.adj)
 
     def build_reinstall(self):
-        title = label("Zaviya is already installed", "h1")
+        title = label("SteamOS is already installed", "h1")
         self.re_lead = label("", "lead")
         self.re_lead.add_css_class("mt2")
-        lead2 = label("Android and its data are not changed. To keep games and saves, use Zaviya Update "
+        lead2 = label("Android and its data are not changed. To keep games and saves, use SteamOS Update "
                       "instead.", "lead")
         lead2.add_css_class("mt2")
         self.re_next = act_button("Continue", primary=True, on_click=lambda: self.show("bring"))
@@ -739,7 +739,7 @@ class InstallerApp:
 
     def fill_reinstall(self):
         self.re_lead.set_text(
-            "Zaviya is already on internal storage. Continuing replaces its system: the boot, system and "
+            "SteamOS is already on internal storage. Continuing replaces its system: the boot, system and "
             "home partitions are formatted again, so games, saves and accounts stored on internal "
             f"storage are erased. The data chosen next is then copied from the {self.media}.")
 
@@ -811,7 +811,7 @@ class InstallerApp:
         else:
             gib = self.android_gib
             rows = [("Android", f"{gib} GB kept. Its apps and data are erased."),
-                    ("Zaviya", f"{backend.zaviya_home_gib(p, gib)} GB for games and settings, "
+                    ("SteamOS", f"{backend.zaviya_home_gib(p, gib)} GB for games and settings, "
                                f"plus {p.boot_gib + p.root_gib} GB of system partitions.")]
             self.hold_text = "Erase Android data and install"
         rows += [("Copied", self.mode_title()), (self.media, "Not changed.")]
@@ -887,7 +887,7 @@ class InstallerApp:
         logo = self.tagline(300)
         logo.set_valign(Gtk.Align.CENTER)
         logo.set_margin_end(64)
-        title = label("Zaviya is on internal storage", "h1")
+        title = label("SteamOS is on internal storage", "h1")
         self.done_steps = vbox()
         self.done_steps.add_css_class("mt3")
         self.done_close = act_button("Close", primary=True, on_click=self.close)
@@ -900,7 +900,7 @@ class InstallerApp:
 
     def done_lines(self):
         if self.tablet:
-            return ["Power off and unplug the USB drive, then power on. The device starts Zaviya from "
+            return ["Power off and unplug the USB drive, then power on. The device starts SteamOS from "
                     "internal storage.",
                     "To return to Android later, flash the saved boot image from a PC with fastboot. "
                     "It is stored in /home/.ufs-backup."]
@@ -1171,14 +1171,14 @@ class InstallerApp:
             return self.show_message(
                 "Installer unavailable",
                 f"The installer runs from {article}, and only on devices that support it. It is not "
-                "available on this device, or when Zaviya already runs from internal storage.")
+                "available on this device, or when SteamOS already runs from internal storage.")
         if p.error:
             return self.show_message("The storage check failed", p.error)
         if not p.running_from_removable:
             article = "a USB drive" if self.tablet else "an SD card"
             return self.show_message(
                 "Installer unavailable",
-                f"The installer runs from {article}. It is not available when Zaviya already runs from "
+                f"The installer runs from {article}. It is not available when SteamOS already runs from "
                 "internal storage.")
         self.reinstall = None
         self.show("reinstall" if p.existing_install else "size")
