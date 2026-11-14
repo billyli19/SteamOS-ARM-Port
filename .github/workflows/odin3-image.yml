@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-24.04-arm
     outputs:
       reuse: ${{ steps.r.outputs.reuse }}
+      mesa_reuse: ${{ steps.r.outputs.mesa_reuse }}
+      mesa_flavor: ${{ steps.r.outputs.mesa_flavor }}
     steps:
     - uses: actions/checkout@v7
     - id: r
@@ -27,6 +29,20 @@ jobs:
         id="$(tr -dc '0-9' < .github/odin3-reuse-run 2>/dev/null || true)"
         echo "reuse=$id" >> "$GITHUB_OUTPUT"
         echo "reuse run: ${id:-none (build everything)}"
+        # Mesa: which source (.github/odin3-mesa-flavor: stable or turnip-v39)
+        # and where it comes from (.github/odin3-mesa-reuse-run: "build", or
+        # the id of a run whose Mesa to take; without the file, the run above).
+        flavor="$(tr -d ' \r\n' < .github/odin3-mesa-flavor 2>/dev/null || true)"; flavor="${flavor:-stable}"
+        m="$(tr -d ' \r\n' < .github/odin3-mesa-reuse-run 2>/dev/null || true)"
+        case "$m" in
+          build) mesa_reuse="" ;;
+          "") mesa_reuse="$id"
+              if [ "$flavor" != stable ]; then echo "::error::Mesa flavor $flavor needs .github/odin3-mesa-reuse-run (build, or a run id)"; exit 1; fi ;;
+          *) mesa_reuse="$(printf '%s' "$m" | tr -dc '0-9')" ;;
+        esac
+        echo "mesa_reuse=$mesa_reuse" >> "$GITHUB_OUTPUT"
+        echo "mesa_flavor=$flavor" >> "$GITHUB_OUTPUT"
+        echo "Mesa: $flavor, from ${mesa_reuse:-this run (built now)}"
   kernel:
     needs: plan
     if: needs.plan.outputs.reuse == ''
@@ -113,11 +129,12 @@ jobs:
       run: df -h /
   mesa:
     needs: plan
-    if: needs.plan.outputs.reuse == ''
+    if: needs.plan.outputs.mesa_reuse == ''
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 180
     env:
       MESA_WORK: ${{ github.workspace }}/mesa-work
+      MESA_FLAVOR: ${{ needs.plan.outputs.mesa_flavor }}
     steps:
     - name: Free up disk space
       run: |
@@ -185,10 +202,18 @@ jobs:
         df -h /
     - name: Build Mesa (all 4 slices)
       run: |
-        sudo env \
-          PATH="$MESA_WORK/venv/bin:$PATH" \
-          MESA_WORK="$MESA_WORK" \
-          bash scripts/build-mesa.sh rootfs prepare aarch64 x86_64 i386 android
+        echo "Mesa flavor: $MESA_FLAVOR"
+        run_mesa() { sudo env PATH="$MESA_WORK/venv/bin:$PATH" MESA_WORK="$MESA_WORK" MESA_FLAVOR="$MESA_FLAVOR" \
+          bash scripts/build-mesa.sh rootfs "$@"; }
+        if [ "$MESA_FLAVOR" = stable ]; then
+          run_mesa prepare aarch64 x86_64 i386 android
+        else
+          # The system and the two x86 game slices are what the image needs.
+          # The Android (Lepton) slice is tried too; without it the image
+          # keeps Valve's own Android Mesa.
+          run_mesa prepare aarch64 x86_64 i386
+          run_mesa android || { echo "::warning::Android Mesa slice did not build for $MESA_FLAVOR; the image keeps Valve's"; sudo rm -rf "$MESA_WORK/out/android"; }
+        fi
         echo "=== After Mesa build ==="
         df -h /
     - name: Compress output
@@ -212,6 +237,7 @@ jobs:
       actions: read
     env:
       STEAMOS_WORK: ${{ github.workspace }}/sm8750-work
+      MESA_SUFFIX: ${{ needs.plan.outputs.mesa_flavor != 'stable' && format('-{0}', needs.plan.outputs.mesa_flavor) || '' }}
     steps:
     - name: Free up disk space
       run: |
@@ -280,17 +306,17 @@ jobs:
         echo "Kernel config FTRACE check:"
         grep -c 'CONFIG_FTRACE=y' "$KREL_DIR"/config-* || echo "No config file (prebuilt kernel)"
     - name: Download Mesa artifact
-      if: needs.plan.outputs.reuse == ''
+      if: needs.plan.outputs.mesa_reuse == ''
       uses: actions/download-artifact@v7
       with:
         name: mesa-sm8750
         path: ./mesa-download/
     - name: Download Mesa artifact (from an earlier run)
-      if: needs.plan.outputs.reuse != ''
+      if: needs.plan.outputs.mesa_reuse != ''
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        gh run download "${{ needs.plan.outputs.reuse }}" --repo "${{ github.repository }}" -n mesa-sm8750 -D ./mesa-download/
+        gh run download "${{ needs.plan.outputs.mesa_reuse }}" --repo "${{ github.repository }}" -n mesa-sm8750 -D ./mesa-download/
         ls -la ./mesa-download/
     - name: Stage Mesa stack
       run: |
@@ -415,6 +441,10 @@ jobs:
           echo "Using official verified prebuilt kernel"
         fi
         export MESA_STACK="${STEAMOS_WORK}/mesa-stack"
+        if [ ! -f "$MESA_STACK/android/usr/share/guestos/android/vendor/lib64/hw/vulkan.freedreno.so" ]; then
+          echo "No Android slice in this Mesa: Android keeps Valve's own"
+          export KEEP_ANDROID_MESA=1
+        fi
         export STEAM_ARM_SEED="${STEAMOS_WORK}/steam-arm-seed"
         if [ -s "${STEAMOS_WORK}/kde-extras-build/kde-extras.tar" ]; then export KDE_EXTRAS="${STEAMOS_WORK}/kde-extras-build/kde-extras.tar"; fi
         export STEAM_ARM_CHANNEL="${STEAM_ARM_CHANNEL:-steamdeck_publicbeta}"
@@ -481,16 +511,17 @@ jobs:
         IMG="${STEAMOS_WORK}/steamos-odin3.img"
         echo "Compressing $IMG ..."
         ls -lh "$IMG"
-        zstd -T0 -3 "$IMG" -o steamos-odin3.img.zst
-        ls -lh steamos-odin3.img.zst
-        sha256sum steamos-odin3.img.zst > steamos-odin3.img.zst.sha256
+        OUT="steamos-odin3${MESA_SUFFIX}.img.zst"
+        zstd -T0 -3 "$IMG" -o "$OUT"
+        ls -lh "$OUT"
+        sha256sum "$OUT" > "$OUT.sha256"
     - name: Upload image artifact
       uses: actions/upload-artifact@v7
       with:
-        name: steamos-odin3-image
+        name: steamos-odin3-image${{ needs.plan.outputs.mesa_flavor != 'stable' && format('-{0}', needs.plan.outputs.mesa_flavor) || '' }}
         path: |
-          steamos-odin3.img.zst
-          steamos-odin3.img.zst.sha256
+          steamos-odin3*.img.zst
+          steamos-odin3*.img.zst.sha256
         retention-days: 14
         compression-level: 0
     needs:
@@ -502,3 +533,4 @@ jobs:
 # run 11: KDE extras get extra-cmake-modules before they are built
 # run 12: Zaviya branding removed (boot logo, videos, wallpaper, names); control panel name fixed
 # run 13: installer fully renamed, CPU vendor/name in Settings, build helpers removed, fuller audit
+# run 14: Mesa flavor turnip-v39 (upstream Mesa main 2026-11-07 + Gen8 stack), kernel reused

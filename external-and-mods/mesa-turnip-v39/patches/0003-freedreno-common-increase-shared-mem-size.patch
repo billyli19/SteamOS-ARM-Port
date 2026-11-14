@@ -1,0 +1,313 @@
+Shared memory 32 KiB -> 64 KiB on every GPU entry, as whitebelyash/mesa-unified
+turnip/gen8 commit dcbb41b2 ("freedreno/common: increase shared mem size").
+
+diff --git a/src/freedreno/common/freedreno_devices.py b/src/freedreno/common/freedreno_devices.py
+index aa6f3729..091078db 100644
+--- a/src/freedreno/common/freedreno_devices.py
++++ b/src/freedreno/common/freedreno_devices.py
+@@ -41,7 +41,7 @@ add_gpus([
+         tile_max_w   = 992, # max_bitfield_val(4, 0, 5)
+         tile_max_h   = max_bitfield_val(9, 5, 5),
+         num_vsc_pipes = 8,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         num_sp_cores = 0, # TODO
+         wave_granularity = 2,
+         fibers_per_sp = 0, # TODO
+@@ -60,7 +60,7 @@ add_gpus([
+         tile_max_w   = 1024, # max_bitfield_val(4, 0, 5)
+         tile_max_h   = max_bitfield_val(9, 5, 5),
+         num_vsc_pipes = 8,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         num_sp_cores = 0, # TODO
+         wave_granularity = 2,
+         fibers_per_sp = 0, # TODO
+@@ -80,7 +80,7 @@ add_gpus([
+         tile_max_w   = 1024, # max_bitfield_val(7, 0, 5)
+         tile_max_h   = 1024, # bins of 2048 rows and up render wrong with hw binning
+         num_vsc_pipes = 16,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         num_sp_cores = 1,
+         wave_granularity = 2,
+         fibers_per_sp = 64 * 16, # Lowest number that didn't fault on spillall fs-varying-array-mat4-col-row-rd.
+@@ -99,7 +99,7 @@ add_gpus([
+         tile_max_w   = 1024, # max_bitfield_val(7, 0, 5)
+         tile_max_h   = 1024, # bins of 2048 rows and up render wrong with hw binning
+         num_vsc_pipes = 16,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         num_sp_cores = 2,
+         wave_granularity = 2,
+         fibers_per_sp = 64 * 16, # Lowest number that didn't fault on spillall fs-varying-array-mat4-col-row-rd.
+@@ -118,7 +118,7 @@ add_gpus([
+         tile_max_w   = 1024, # max_bitfield_val(7, 0, 5)
+         tile_max_h   = 1024, # bins of 2048 rows and up render wrong with hw binning
+         num_vsc_pipes = 16,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         num_sp_cores = 4,
+         wave_granularity = 2,
+         fibers_per_sp = 64 * 16, # Lowest number that didn't fault on spillall fs-varying-array-mat4-col-row-rd.
+@@ -355,7 +355,7 @@ add_gpus([
+         tile_max_w = 1024,
+         tile_max_h = 1024,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 16,
+         highest_bank_bit = 14,
+@@ -388,7 +388,7 @@ add_gpus([
+         tile_max_w = 1024,
+         tile_max_h = 1024,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 16,
+         raw_magic_regs = [
+@@ -419,7 +419,7 @@ add_gpus([
+         tile_max_w = 1024,
+         tile_max_h = 1024,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         raw_magic_regs = [
+@@ -452,7 +452,7 @@ add_gpus([
+         tile_max_w = 1024,
+         tile_max_h = 1024,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 16,
+         highest_bank_bit = 15,
+@@ -484,7 +484,7 @@ add_gpus([
+         tile_max_w = 1024,
+         tile_max_h = 1024,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 4 * 16,
+         highest_bank_bit = 15,
+@@ -516,7 +516,7 @@ add_gpus([
+         tile_max_w = 1024,
+         tile_max_h = 1024,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 4 * 16,
+         highest_bank_bit = 15,
+@@ -548,7 +548,7 @@ add_gpus([
+         tile_max_w = 1024,
+         tile_max_h = 1024,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         highest_bank_bit = 16,
+@@ -586,7 +586,7 @@ add_gpus([
+         tile_max_w = 1024,
+         tile_max_h = 1024,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         highest_bank_bit = 14,
+@@ -617,7 +617,7 @@ add_gpus([
+         tile_max_w = 1024,
+         tile_max_h = 1024,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         highest_bank_bit = 16,
+@@ -649,7 +649,7 @@ add_gpus([
+         tile_max_w = 1024,
+         tile_max_h = 1024,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 4 * 16,
+         raw_magic_regs = [
+@@ -680,7 +680,7 @@ add_gpus([
+         tile_max_w = 1024,
+         tile_max_h = 1024,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         highest_bank_bit = 16,
+@@ -1090,7 +1090,7 @@ add_gpus([
+         tile_max_w = 1024,
+         tile_max_h = 1024,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         highest_bank_bit = 15,
+@@ -1109,7 +1109,7 @@ add_gpus([
+         tile_max_w = 1024,
+         tile_max_h = 1024,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         highest_bank_bit = 15,
+@@ -1128,7 +1128,7 @@ add_gpus([
+         tile_max_w = 1024,
+         tile_max_h = 1024,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         raw_magic_regs = a730_raw_magic_regs,
+@@ -1147,7 +1147,7 @@ add_gpus([
+         tile_max_w = 1024,
+         tile_max_h = 1024,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         highest_bank_bit = 16,
+@@ -1166,7 +1166,7 @@ add_gpus([
+         tile_max_w = 1024,
+         tile_max_h = 1024,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         highest_bank_bit = 16,
+@@ -1186,7 +1186,7 @@ add_gpus([
+         tile_max_w = 2016,
+         tile_max_h = 2032,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         raw_magic_regs = [
+@@ -1249,7 +1249,7 @@ add_gpus([
+         tile_max_w = 2016,
+         tile_max_h = 2032,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         highest_bank_bit = 16,
+@@ -1269,7 +1269,7 @@ add_gpus([
+         tile_max_w = 2016,
+         tile_max_h = 2032,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         raw_magic_regs = [
+@@ -1329,7 +1329,7 @@ add_gpus([
+         tile_max_w = 2016,
+         tile_max_h = 2032,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         raw_magic_regs = a740_raw_magic_regs,
+@@ -1351,7 +1351,7 @@ add_gpus([
+         tile_max_w = 2016,
+         tile_max_h = 2032,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         highest_bank_bit = 16,
+@@ -1528,7 +1528,7 @@ add_gpus([
+         tile_max_w = 16384,
+         tile_max_h = 16384,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         raw_magic_regs = a8xx_base_raw_magic_regs,
+@@ -1548,7 +1548,7 @@ add_gpus([
+         tile_max_w = 16416,
+         tile_max_h = 16384,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         raw_magic_regs = a8xx_base_raw_magic_regs,
+@@ -1585,7 +1585,7 @@ add_gpus([
+         tile_max_w = 16416,
+         tile_max_h = 16384,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         raw_magic_regs = a8xx_base_raw_magic_regs,
+@@ -1626,7 +1626,7 @@ add_gpus([
+         tile_max_w = 16384,
+         tile_max_h = 16384,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         raw_magic_regs = a8xx_base_raw_magic_regs,
+@@ -1645,7 +1645,7 @@ add_gpus([
+         tile_max_w = 16416,
+         tile_max_h = 16384,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         raw_magic_regs = a8xx_base_raw_magic_regs,
+@@ -1665,7 +1665,7 @@ add_gpus([
+         tile_max_w = 16384,
+         tile_max_h = 16384,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         raw_magic_regs = a8xx_base_raw_magic_regs,
+@@ -1684,7 +1684,7 @@ add_gpus([
+         tile_max_w = 16416,
+         tile_max_h = 16384,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         raw_magic_regs = a8xx_base_raw_magic_regs,
+@@ -1702,7 +1702,7 @@ add_gpus([
+         tile_max_w = 16384,
+         tile_max_h = 16384,
+         num_vsc_pipes = 32,
+-        cs_shared_mem_size = 32 * 1024,
++        cs_shared_mem_size = 64 * 1024,
+         wave_granularity = 2,
+         fibers_per_sp = 128 * 2 * 16,
+         raw_magic_regs = a8xx_base_raw_magic_regs,

@@ -22,6 +22,23 @@ MESA_SHA256=04294f75d22e9f61cd1e050206bc48b3d39366e788f1803a3368e3d5a872ce18
 W="${MESA_WORK:-/work/mesa}"
 G="$R/usr/share/guestos/fex-mesa"
 PATCHES="${ROOT}/external-and-mods/mesa/patches"
+MESA_GIT_COMMIT=""
+PATCH_OPTS=()
+# MESA_FLAVOR=turnip-v39: the source the "Turnip Gen8 V39" Android driver is
+# built from (StevenMXZ/Adreno-Tools-Drivers): upstream Mesa main as of
+# 2026-11-07 plus whitebelyash's turnip/gen8 stack, here built for Linux.
+# See external-and-mods/mesa-turnip-v39/README.md.
+MESA_FLAVOR="${MESA_FLAVOR:-stable}"
+case "$MESA_FLAVOR" in
+  stable) ;;
+  turnip-v39)
+    MESA_VERSION=27.0.0-devel
+    MESA_GIT_COMMIT=c0235eff650720faff05452a06a0a09479b3621f
+    MESA_GIT_URLS=(https://gitlab.freedesktop.org/mesa/mesa.git https://github.com/chaotic-cx/mesa-mirror)
+    PATCHES="${ROOT}/external-and-mods/mesa-turnip-v39/patches"
+    PATCH_OPTS=(--fuzz=4 --no-backup-if-mismatch) ;;
+  *) echo "ERROR: unknown MESA_FLAVOR $MESA_FLAVOR" >&2; exit 1 ;;
+esac
 
 # Cross builds run on the build host; Mesa 26.2 needs Meson >= 1.4 (Ubuntu
 # 24.04 has 1.3): python3 -m venv $MESA_WORK/venv && pip install meson mako pyyaml
@@ -46,27 +63,72 @@ OPTS=(
 prepare_source() {
   mkdir -p "$W/cache"
   local tar="$W/cache/mesa-${MESA_VERSION}.tar.xz"
-  if [[ ! -s "$tar" ]]; then
-    curl -fL --retry 3 -o "$tar.part" "https://archive.mesa3d.org/mesa-${MESA_VERSION}.tar.xz"
-    mv "$tar.part" "$tar"
+  if [[ -z "$MESA_GIT_COMMIT" ]]; then
+    if [[ ! -s "$tar" ]]; then
+      curl -fL --retry 3 -o "$tar.part" "https://archive.mesa3d.org/mesa-${MESA_VERSION}.tar.xz"
+      mv "$tar.part" "$tar"
+    fi
+    echo "${MESA_SHA256}  $tar" | sha256sum -c - >/dev/null || die "mesa tarball checksum mismatch"
   fi
-  echo "${MESA_SHA256}  $tar" | sha256sum -c - >/dev/null || die "mesa tarball checksum mismatch"
   local digest
   # The version is part of the digest: a version bump with unchanged patches
   # must not reuse the old source tree.
-  digest="$( (echo "$MESA_VERSION"; cat "$PATCHES"/*.patch) | sha256sum | cut -d' ' -f1)"
+  digest="$( (echo "$MESA_VERSION $MESA_GIT_COMMIT"; cat "$PATCHES"/*.patch) | sha256sum | cut -d' ' -f1)"
   if [[ -f "$W/src/.patched" && "$(cat "$W/src/.patched")" == "$digest" ]]; then
     log "source ready"
     return
   fi
   rm -rf "$W/src"; mkdir -p "$W/src"
-  tar -C "$W/src" --strip-components=1 -xJf "$tar"
+  if [[ -n "$MESA_GIT_COMMIT" ]]; then
+    # One pinned commit, from Mesa's own server or a GitHub mirror of it. The
+    # commit id is the checksum: git refuses content that doesn't hash to it.
+    local url got=""
+    git -C "$W/src" init -q
+    for url in "${MESA_GIT_URLS[@]}"; do
+      log "fetching Mesa $MESA_GIT_COMMIT from $url"
+      if git -C "$W/src" fetch -q --depth=1 "$url" "$MESA_GIT_COMMIT"; then got=1; break; fi
+    done
+    [[ -n "$got" ]] || die "could not fetch Mesa commit $MESA_GIT_COMMIT"
+    git -C "$W/src" -c advice.detachedHead=false checkout -q FETCH_HEAD
+    [[ "$(git -C "$W/src" rev-parse HEAD)" == "$MESA_GIT_COMMIT" ]] || die "wrong Mesa commit checked out"
+    rm -rf "$W/src/.git"
+    [[ "$(cat "$W/src/VERSION")" == "$MESA_VERSION" ]] || die "Mesa VERSION is $(cat "$W/src/VERSION"), expected $MESA_VERSION"
+  else
+    tar -C "$W/src" --strip-components=1 -xJf "$tar"
+  fi
   local p
   for p in "$PATCHES"/*.patch; do
     log "patch $(basename "$p")"
-    patch -d "$W/src" -p1 -N -s <"$p" || die "patch failed: $p"
+    patch -d "$W/src" -p1 -N -s "${PATCH_OPTS[@]}" <"$p" || die "patch failed: $p"
   done
+  [[ -z "$(find "$W/src" -name '*.rej' -print -quit)" ]] || die "patch rejects left in the source"
   echo "$digest" >"$W/src/.patched"
+}
+
+# Mesa main wants a newer wayland-protocols than the Frame rootfs may have
+# (XML files and a .pc, nothing compiled). When it does, the files come from
+# the Arch package and stand in for the rootfs's in both kinds of build.
+WLP_ROOT="$R"
+prepare_wayland_protocols() {
+  local need have
+  need="$(grep -o "'wayland-protocols', version : '>= [0-9.]*" "$W/src/meson.build" | grep -o '[0-9.]*$' | sed -n 1p || true)"
+  have="$(sed -n 's/^Version: //p' "$R/usr/share/pkgconfig/wayland-protocols.pc" 2>/dev/null || true)"
+  [[ -n "$need" ]] || return 0
+  if [[ -n "$have" && "$(printf '%s\n%s\n' "$need" "$have" | sort -V | sed -n 1p)" == "$need" ]]; then
+    log "wayland-protocols $have in the rootfs is new enough (needs $need)"
+    return 0
+  fi
+  local out="$W/wlp" d="$W/cache/arch" url="https://archive.archlinux.org/packages/w/wayland-protocols/" file
+  mkdir -p "$out" "$d"
+  if [[ ! -f "$out/usr/share/pkgconfig/wayland-protocols.pc" ]]; then
+    file="$( { curl -fsSL "$url" | grep -oE 'href="wayland-protocols-1\.(49|[5-9][0-9])-[0-9]+-any\.pkg\.tar\.(zst|xz)"' \
+            | sed 's/href="//;s/"$//' | sort -V | tail -n 1; } || true)"
+    [[ -n "$file" ]] || die "no Arch wayland-protocols >= $need package found"
+    [[ -s "$d/$file" ]] || curl -fsSL -o "$d/$file" "$url$file"
+    tar -C "$out" -xf "$d/$file" usr/share/wayland-protocols usr/share/pkgconfig/wayland-protocols.pc
+  fi
+  WLP_ROOT="$out"
+  log "wayland-protocols: rootfs has ${have:-none}, Mesa needs $need, using $(sed -n 's/^Version: //p' "$out/usr/share/pkgconfig/wayland-protocols.pc") from Arch"
 }
 
 build_aarch64() {
@@ -76,8 +138,24 @@ build_aarch64() {
   local -a bw=(bwrap --ro-bind "$R" / --bind "$W" /mnt --dev /dev --proc /proc
                --tmpfs /tmp --tmpfs /run --unshare-pid --die-with-parent
                --setenv PATH /usr/bin --chdir /mnt/src)
+  if [[ "$WLP_ROOT" != "$R" ]]; then
+    bw+=(--ro-bind "$WLP_ROOT/usr/share/wayland-protocols" /usr/share/wayland-protocols
+         --ro-bind "$WLP_ROOT/usr/share/pkgconfig/wayland-protocols.pc" /usr/share/pkgconfig/wayland-protocols.pc)
+  fi
+  # A Mesa that wants a newer Meson than the rootfs has gets a private copy
+  # (pure Python, run by the rootfs's own python3).
+  local -a meson=(meson)
+  local need have
+  need="$(grep -m1 -o "meson_version *: *'>= *[0-9.]*" "$W/src/meson.build" | grep -o '[0-9.]*$' || true)"
+  have="$("${bw[@]}" meson --version 2>/dev/null || echo 0)"
+  if [[ -n "$need" && "$(printf '%s\n%s\n' "$need" "$have" | sort -V | sed -n 1p)" != "$need" ]]; then
+    log "aarch64: rootfs Meson $have is older than $need, using a private copy"
+    [[ -d "$W/pymeson/mesonbuild" ]] || python3 -m pip install -q --target "$W/pymeson" "meson>=$need"
+    bw+=(--setenv PYTHONPATH /mnt/pymeson)
+    meson=(python3 -m mesonbuild.mesonmain)
+  fi
   log "aarch64: meson"
-  "${bw[@]}" meson setup /mnt/build-aarch64 "${OPTS[@]}" --libdir=lib >"$W/aarch64.log" 2>&1 \
+  "${bw[@]}" "${meson[@]}" setup /mnt/build-aarch64 "${OPTS[@]}" --libdir=lib >"$W/aarch64.log" 2>&1 \
     || { tail -40 "$W/aarch64.log"; die "aarch64 meson failed"; }
   log "aarch64: ninja"
   "${bw[@]}" ninja -C /mnt/build-aarch64 >>"$W/aarch64.log" 2>&1 || { tail -40 "$W/aarch64.log"; die "aarch64 build failed"; }
@@ -139,8 +217,8 @@ make_sysroot() {
     cp "$stubs" "$s/usr/include/gnu/stubs-32.h"
   fi
   cp -a "$G/usr/share/pkgconfig/." "$s/usr/share/pkgconfig/"
-  cp "$R/usr/share/pkgconfig/wayland-protocols.pc" "$s/usr/share/pkgconfig/"
-  ln -s "$R/usr/share/wayland-protocols" "$s/usr/share/wayland-protocols"
+  cp "$WLP_ROOT/usr/share/pkgconfig/wayland-protocols.pc" "$s/usr/share/pkgconfig/"
+  ln -s "$WLP_ROOT/usr/share/wayland-protocols" "$s/usr/share/wayland-protocols"
   echo "$s"
 }
 
@@ -277,6 +355,7 @@ CROSS
 
 [[ -d "$G/usr/lib" ]] || die "no FEX guest tree in $R"
 prepare_source
+prepare_wayland_protocols
 fetch_guest_headers
 for a in "${ARCHES[@]}"; do
   case "$a" in
